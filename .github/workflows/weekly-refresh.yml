@@ -36,6 +36,8 @@ jobs:
       - name: Checkout scripts (main)
         if: steps.guard.outputs.run == 'true'
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Checkout published site (gh-pages -> ./site)
         if: steps.guard.outputs.run == 'true'
@@ -44,22 +46,26 @@ jobs:
           ref: gh-pages
           path: site
 
-      - name: Restore DB + caches from private state repo
+      - name: Checkout state branch (DB + caches -> ./_state)
         if: steps.guard.outputs.run == 'true'
-        env:
-          DATA_REPO_PAT: ${{ secrets.DATA_REPO_PAT }}
+        uses: actions/checkout@v4
+        with:
+          ref: state
+          path: _state
+
+      - name: Restore DB + caches from state branch
+        if: steps.guard.outputs.run == 'true'
         run: |
-          git clone --depth 1 https://x-access-token:${DATA_REPO_PAT}@github.com/swapnilyavalkar/gc-app-data.git _state
           mkdir -p data/cache
           if [ -f _state/persist/gc-app.db ]; then
             cp _state/persist/gc-app.db data/gc-app.db
           else
-            echo "::error::No gc-app.db in gc-app-data/persist — refusing to rebuild data.json from an empty DB"; exit 1
+            echo "::error::No gc-app.db on state branch - refusing to rebuild data.json from an empty DB"; exit 1
           fi
           for d in commentary match_history; do
             [ -d _state/persist/cache/$d ] && { mkdir -p data/cache/$d; cp -r _state/persist/cache/$d/. data/cache/$d/; }
           done
-          rm -rf _state
+          true
 
       - uses: actions/setup-python@v5
         if: steps.guard.outputs.run == 'true'
@@ -74,8 +80,11 @@ jobs:
       - name: Work out days to fetch (from existing data.json)
         if: steps.guard.outputs.run == 'true'
         id: days
+        env:
+          INPUT_DAYS: ${{ inputs.days }}
         run: |
-          D="${{ inputs.days }}"
+          D="$INPUT_DAYS"
+          case "$D" in ''|*[!0-9]*) D="" ;; esac
           [ -z "$D" ] && D=$(python scripts/compute_days.py site/data/data.json)
           echo "days=$D" >> "$GITHUB_OUTPUT"; echo "Fetching last $D day(s)"
 
@@ -111,12 +120,9 @@ jobs:
             git push
           fi
 
-      - name: Save DB + caches back to private state repo
+      - name: Save DB + caches back to state branch
         if: steps.guard.outputs.run == 'true'
-        env:
-          DATA_REPO_PAT: ${{ secrets.DATA_REPO_PAT }}
         run: |
-          git clone --depth 1 https://x-access-token:${DATA_REPO_PAT}@github.com/swapnilyavalkar/gc-app-data.git _state
           mkdir -p _state/persist/cache/commentary _state/persist/cache/match_history
           cp data/gc-app.db _state/persist/gc-app.db
           cp data/cache/commentary/balls_* _state/persist/cache/commentary/ 2>/dev/null || true
