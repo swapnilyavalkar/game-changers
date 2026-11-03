@@ -300,10 +300,10 @@ def upsert_match(data: dict) -> int:
     VALUES (:cricheroes_match_id, :match_date, :opponent, :overs, :result, :venue, :tournament,
             :scorecard_raw, :is_game_changers_match)
     ON CONFLICT(cricheroes_match_id) DO UPDATE SET
-        match_date         = excluded.match_date,
-        opponent           = excluded.opponent,
-        overs              = excluded.overs,
-        result             = excluded.result,
+        match_date         = COALESCE(NULLIF(excluded.match_date, ''), matches.match_date),
+        opponent           = COALESCE(NULLIF(excluded.opponent, ''), matches.opponent),
+        overs              = COALESCE(NULLIF(excluded.overs, 0), matches.overs),
+        result             = COALESCE(NULLIF(excluded.result, ''), matches.result),
         venue              = excluded.venue,
         tournament         = excluded.tournament,
         scorecard_raw      = excluded.scorecard_raw,
