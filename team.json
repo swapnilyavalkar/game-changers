@@ -1,0 +1,363 @@
+{
+  "_about": "Primary config file for Game Changers App (GC App).",
+  "team_id": "2182806",
+  "team_slug": "gc-app",
+  "team_name": "Game Changers",
+  "teams": [
+    {
+      "team_id": "2182806",
+      "team_slug": "super-game-changers",
+      "team_name": "Super Game Changers"
+    },
+    {
+      "team_id": "2182828",
+      "team_slug": "game-changers",
+      "team_name": "Game Changers"
+    }
+  ],
+  "benchmarks": {
+    "bat_avg_benchmark": 20.0,
+    "bat_sr_benchmark": 120.0,
+    "bowl_econ_good": 9.0,
+    "bowl_econ_bad": 16.0
+  },
+  "weights": {
+    "recent_form": 0.4,
+    "format_specific": 0.3,
+    "career_avg": 0.2,
+    "consistency": 0.1
+  },
+  "squad_11": {
+    "wicket_keeper": [
+      1,
+      2
+    ],
+    "batsman": [
+      3,
+      5
+    ],
+    "all_rounder": [
+      1,
+      3
+    ],
+    "bowler": [
+      2,
+      4
+    ]
+  },
+  "squad_15": {
+    "wicket_keeper": [
+      1,
+      2
+    ],
+    "batsman": [
+      4,
+      6
+    ],
+    "all_rounder": [
+      2,
+      4
+    ],
+    "bowler": [
+      3,
+      5
+    ]
+  },
+  "player_ids": [
+    {
+      "id": "34637646",
+      "name": "Shahaji Kadam",
+      "role": "all_rounder"
+    },
+    {
+      "id": "16895321",
+      "name": "Abhijeet Andansare",
+      "role": "all_rounder"
+    },
+    {
+      "id": "22442378",
+      "name": "Abhijit Aradhye",
+      "role": "all_rounder"
+    },
+    {
+      "id": "14465793",
+      "name": "Abhimanyu Salvi",
+      "role": "all_rounder"
+    },
+    {
+      "id": "49703613",
+      "name": "Aditya Darandale",
+      "role": "all_rounder"
+    },
+    {
+      "id": "49215495",
+      "name": "Ajit Kadam",
+      "role": "all_rounder"
+    },
+    {
+      "id": "1419686",
+      "name": "Amit Holi",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10163658",
+      "name": "Amol Bhongale",
+      "role": "all_rounder"
+    },
+    {
+      "id": "1430158",
+      "name": "Anderson",
+      "role": "all_rounder"
+    },
+    {
+      "id": "33079496",
+      "name": "Ankush Datey",
+      "role": "all_rounder"
+    },
+    {
+      "id": "9007774",
+      "name": "Bharat Kamble",
+      "role": "all_rounder"
+    },
+    {
+      "id": "7859755",
+      "name": "Deepak Nemade",
+      "role": "all_rounder"
+    },
+    {
+      "id": "48273314",
+      "name": "Devraj Pingalwad",
+      "role": "all_rounder"
+    },
+    {
+      "id": "9344384",
+      "name": "Dnyaneshwar Shelke",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10158247",
+      "name": "Karan Gajdhane",
+      "role": "all_rounder"
+    },
+    {
+      "id": "9335186",
+      "name": "Manoj Shinde",
+      "role": "all_rounder"
+    },
+    {
+      "id": "13015692",
+      "name": "Nc Prashant Suryawanshi 09 06",
+      "role": "all_rounder"
+    },
+    {
+      "id": "24001560",
+      "name": "Ncgc Akshay Jadhav",
+      "role": "all_rounder"
+    },
+    {
+      "id": "21083489",
+      "name": "Ncgc Prashant Ambawale",
+      "role": "all_rounder"
+    },
+    {
+      "id": "20278525",
+      "name": "Ncgc Ranjitsingh Ghutte A4",
+      "role": "all_rounder"
+    },
+    {
+      "id": "44001618",
+      "name": "Pankaj Kulkarni",
+      "role": "all_rounder"
+    },
+    {
+      "id": "6452408",
+      "name": "Prabhakar Saraf",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10330672",
+      "name": "Pravin Warey",
+      "role": "all_rounder"
+    },
+    {
+      "id": "4297832",
+      "name": "Rahul Nagapure",
+      "role": "all_rounder"
+    },
+    {
+      "id": "1424413",
+      "name": "Raju Marathe",
+      "role": "all_rounder"
+    },
+    {
+      "id": "1424434",
+      "name": "Ramesh Thavare",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10158476",
+      "name": "Ravindra Maruti Desai",
+      "role": "all_rounder"
+    },
+    {
+      "id": "16895445",
+      "name": "Rohan Kapare",
+      "role": "all_rounder"
+    },
+    {
+      "id": "39764904",
+      "name": "Rupesh Patere",
+      "role": "all_rounder"
+    },
+    {
+      "id": "39261459",
+      "name": "Rushikesh Pawar Rp",
+      "role": "all_rounder"
+    },
+    {
+      "id": "29491583",
+      "name": "Sahil Khenat",
+      "role": "all_rounder"
+    },
+    {
+      "id": "14353423",
+      "name": "Sanket Chougule",
+      "role": "all_rounder"
+    },
+    {
+      "id": "5186786",
+      "name": "Scoe Ranjitsingh Ghutte A4",
+      "role": "all_rounder"
+    },
+    {
+      "id": "2288543",
+      "name": "Swapnil Yavalkar",
+      "role": "all_rounder"
+    },
+    {
+      "id": "13029328",
+      "name": "Swapnil Yavalkar ",
+      "role": "all_rounder"
+    },
+    {
+      "id": "11950204",
+      "name": "Umesh Arkel",
+      "role": "all_rounder"
+    },
+    {
+      "id": "19995011",
+      "name": "Vaibhav D Kulat",
+      "role": "all_rounder"
+    },
+    {
+      "id": "28182724",
+      "name": "Vaibhav Dudhnale",
+      "role": "all_rounder"
+    },
+    {
+      "id": "6452411",
+      "name": "Vikram Mohite",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10583452",
+      "name": "Vikram Naik",
+      "role": "all_rounder"
+    },
+    {
+      "id": "21679685",
+      "name": "Vinayak Dalvi",
+      "role": "all_rounder"
+    },
+    {
+      "id": "34983145",
+      "name": "Vishal Gavare",
+      "role": "all_rounder"
+    },
+    {
+      "id": "1419559",
+      "name": "Vishal Shinde",
+      "role": "all_rounder"
+    },
+    {
+      "id": "16895327",
+      "name": "Yash Marathe",
+      "role": "all_rounder"
+    },
+    {
+      "id": "24000747",
+      "name": "Yogesh Patole",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10834097",
+      "name": "Yogesh Shrihari Tambe",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10160637",
+      "name": "Amol Bhongale",
+      "role": "all_rounder"
+    },
+    {
+      "id": "29656383",
+      "name": "Kishan Kalyankar",
+      "role": "all_rounder"
+    },
+    {
+      "id": "16926268",
+      "name": "Nc Mahesh Bhamre 27 02",
+      "role": "all_rounder"
+    },
+    {
+      "id": "17040375",
+      "name": "Ncgc Param Dhekane",
+      "role": "all_rounder"
+    },
+    {
+      "id": "44000529",
+      "name": "Ncgc Satyajit Ushir",
+      "role": "all_rounder"
+    },
+    {
+      "id": "5041966",
+      "name": "Prashant Suryawanshi",
+      "role": "all_rounder"
+    },
+    {
+      "id": "7337478",
+      "name": "Pravin Salve",
+      "role": "all_rounder"
+    },
+    {
+      "id": "10697923",
+      "name": "Ravindra Desai",
+      "role": "all_rounder"
+    },
+    {
+      "id": "7859771",
+      "name": "Sagar Fegade",
+      "role": "all_rounder"
+    },
+    {
+      "id": "14344612",
+      "name": "Sankarshan Manavi",
+      "role": "all_rounder"
+    },
+    {
+      "id": "5105856",
+      "name": "Vaibhav Late",
+      "role": "all_rounder"
+    },
+    {
+      "id": "1464741",
+      "name": "Vishal Shinde",
+      "role": "all_rounder"
+    }
+  ],
+  "recent_matches_n": 5,
+  "form_thresholds": {
+    "in_form": 60,
+    "average": 40
+  }
+}

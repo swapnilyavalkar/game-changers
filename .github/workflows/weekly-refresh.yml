@@ -1,0 +1,128 @@
+name: Weekly data refresh
+
+on:
+  schedule:
+    # 20:00 and 21:00 UTC on Sunday; the guard step lets only the run that is 21:xx in London proceed
+    - cron: '0 20,21 * * 0'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Override: fetch last N days (blank = auto from data.json)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Guard (Sunday 21:xx Europe/London only for scheduled runs)
+        id: guard
+        run: |
+          H=$(TZ=Europe/London date +%H)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$H" != "21" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "London hour is $H — skipping"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout scripts (main)
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Checkout published site (gh-pages -> ./site)
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+
+      - name: Restore DB + caches from private state repo
+        if: steps.guard.outputs.run == 'true'
+        env:
+          DATA_REPO_PAT: ${{ secrets.DATA_REPO_PAT }}
+        run: |
+          git clone --depth 1 https://x-access-token:${DATA_REPO_PAT}@github.com/swapnilyavalkar/gc-app-data.git _state
+          mkdir -p data/cache
+          if [ -f _state/persist/gc-app.db ]; then
+            cp _state/persist/gc-app.db data/gc-app.db
+          else
+            echo "::error::No gc-app.db in gc-app-data/persist — refusing to rebuild data.json from an empty DB"; exit 1
+          fi
+          for d in commentary match_history; do
+            [ -d _state/persist/cache/$d ] && { mkdir -p data/cache/$d; cp -r _state/persist/cache/$d/. data/cache/$d/; }
+          done
+          rm -rf _state
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.run == 'true'
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Work out days to fetch (from existing data.json)
+        if: steps.guard.outputs.run == 'true'
+        id: days
+        run: |
+          D="${{ inputs.days }}"
+          [ -z "$D" ] && D=$(python scripts/compute_days.py site/data/data.json)
+          echo "days=$D" >> "$GITHUB_OUTPUT"; echo "Fetching last $D day(s)"
+
+      - name: Fetch only new matches
+        if: steps.guard.outputs.run == 'true'
+        env:
+          CH_API_KEY: ${{ secrets.CH_API_KEY }}
+        run: python main.py fetch --days ${{ steps.days.outputs.days }}
+
+      - name: Snapshot + generate dashboard
+        if: steps.guard.outputs.run == 'true'
+        env:
+          CH_API_KEY: ${{ secrets.CH_API_KEY }}
+        run: |
+          python main.py snapshot
+          python main.py dashboard
+          cmp reports/index.html reports/dashboard.html
+
+      - name: Publish to gh-pages (only if changed)
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          mkdir -p site/data
+          cp reports/data/data.json site/data/data.json
+          cp reports/index.html site/index.html
+          cp reports/dashboard.html site/dashboard.html
+          touch site/.nojekyll
+          cd site
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No new data — nothing to publish."; else
+            git commit -m "data: weekly refresh $(date -u +%F)"
+            git push
+          fi
+
+      - name: Save DB + caches back to private state repo
+        if: steps.guard.outputs.run == 'true'
+        env:
+          DATA_REPO_PAT: ${{ secrets.DATA_REPO_PAT }}
+        run: |
+          git clone --depth 1 https://x-access-token:${DATA_REPO_PAT}@github.com/swapnilyavalkar/gc-app-data.git _state
+          mkdir -p _state/persist/cache/commentary _state/persist/cache/match_history
+          cp data/gc-app.db _state/persist/gc-app.db
+          cp data/cache/commentary/balls_* _state/persist/cache/commentary/ 2>/dev/null || true
+          cp data/cache/match_history/*.json _state/persist/cache/match_history/ 2>/dev/null || true
+          cd _state
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add persist/
+          git diff --cached --quiet || { git commit -m "state: $(date -u +%FT%TZ)"; git push; }
