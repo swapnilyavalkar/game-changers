@@ -165,12 +165,50 @@ def _extract_next_data(html: str) -> dict | None:
     """
     soup = BeautifulSoup(html, "lxml")
     tag  = soup.find("script", {"id": "__NEXT_DATA__"})
-    if not tag:
+    if tag:
+        try:
+            return json.loads(tag.string)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return _next_data_from_rsc(soup)
+
+
+_RSC_PUSH_RE = re.compile(r'self\.__next_f\.push\(\[1,(".*")\]\)\s*$', re.S)
+
+
+def _next_data_from_rsc(soup: BeautifulSoup) -> dict | None:
+    """Rebuild {"props": {"pageProps": {...}}} from App Router flight data.
+
+    Current CricHeroes pages have no __NEXT_DATA__ script; the same props arrive as
+    self.__next_f.push() chunks. Only the object holding "playerInfo" is needed here.
+    """
+    parts: list[str] = []
+    for s in soup.find_all("script"):
+        src = s.string or ""
+        if "self.__next_f.push" not in src:
+            continue
+        m = _RSC_PUSH_RE.search(src.strip())
+        if not m:
+            continue
+        try:
+            parts.append(json.loads(m.group(1)))
+        except json.JSONDecodeError:
+            continue
+    text = "".join(parts)
+    anchor = text.find('"playerInfo"')
+    if anchor < 0:
         return None
-    try:
-        return json.loads(tag.string)
-    except (json.JSONDecodeError, TypeError):
-        return None
+    decoder = json.JSONDecoder()
+    for start in range(anchor - 1, max(0, anchor - 400), -1):
+        if text[start] != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text[start:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict) and "playerInfo" in obj:
+            return {"props": {"pageProps": obj}}
+    return None
 
 
 def _parse_player_statement(statement: str) -> dict:

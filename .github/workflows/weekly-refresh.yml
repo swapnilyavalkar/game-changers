@@ -21,7 +21,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - name: Guard (Sunday 21:xx Europe/London only for scheduled runs)
         id: guard
@@ -62,7 +62,7 @@ jobs:
           else
             echo "::error::No gc-app.db on state branch - refusing to rebuild data.json from an empty DB"; exit 1
           fi
-          for d in commentary match_history scorecards; do
+          for d in commentary scorecards; do
             [ -d _state/persist/cache/$d ] && { mkdir -p data/cache/$d; cp -r _state/persist/cache/$d/. data/cache/$d/; }
           done
           true
@@ -103,6 +103,10 @@ jobs:
           python main.py dashboard
           cmp reports/index.html reports/dashboard.html
 
+      - name: Refuse to publish if the data got smaller
+        if: steps.guard.outputs.run == 'true'
+        run: python scripts/check_not_shrinking.py site/data/data.json reports/data/data.json
+
       - name: Publish to gh-pages (only if changed)
         if: steps.guard.outputs.run == 'true'
         run: |
@@ -124,10 +128,9 @@ jobs:
       - name: Save DB + caches back to state branch
         if: steps.guard.outputs.run == 'true'
         run: |
-          mkdir -p _state/persist/cache/commentary _state/persist/cache/match_history _state/persist/cache/scorecards
+          mkdir -p _state/persist/cache/commentary _state/persist/cache/scorecards
           cp data/gc-app.db _state/persist/gc-app.db
           cp data/cache/commentary/balls_* _state/persist/cache/commentary/ 2>/dev/null || true
-          cp data/cache/match_history/*.json _state/persist/cache/match_history/ 2>/dev/null || true
           find data/cache/scorecards -name 'scorecard_*.html' -size +1k -exec cp -n {} _state/persist/cache/scorecards/ \; 2>/dev/null || true
           cd _state
           git config user.name  "github-actions[bot]"

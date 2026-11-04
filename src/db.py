@@ -249,10 +249,10 @@ def upsert_player(data: dict) -> int:
                           THEN excluded.role
                           ELSE players.role
                         END,
-        batting_style = excluded.batting_style,
-        bowling_style = excluded.bowling_style,
-        profile_url   = excluded.profile_url,
-        photo_url     = excluded.photo_url,
+        batting_style = COALESCE(NULLIF(excluded.batting_style, ''), players.batting_style),
+        bowling_style = COALESCE(NULLIF(excluded.bowling_style, ''), players.bowling_style),
+        profile_url   = COALESCE(NULLIF(excluded.profile_url, ''),   players.profile_url),
+        photo_url     = COALESCE(NULLIF(excluded.photo_url, ''),     players.photo_url),
         is_game_changers  = MAX(players.is_game_changers, excluded.is_game_changers),
         updated_at    = datetime('now')
     """
