@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config import (
     TEAM_ID, TEAM_SLUG, TEAM_URL,
-    CH_BASE_URL, TEAM_PROFILE_BASE, CH_API_URL,
+    CH_BASE_URL, TEAM_PROFILE_BASE, CH_API_URL, CH_API_KEY,
     PAGE_LOAD_WAIT, SCORECARD_WAIT,
     REQUEST_DELAY_SEC, DATA_DIR,
 )
@@ -749,13 +749,29 @@ def _parse_over_assignments_from_commentary(nd: dict) -> dict[str, list[int]]:
     return {pid: sorted(ovs) for pid, ovs in assignments.items()}
 
 
+_MATCH_TABS = frozenset({
+    "summary", "scorecard", "commentary", "live", "mvp", "analysis", "heroes",
+    "teams", "gallery", "stats", "full-scorecard",
+})
+
+
+def _match_tab_url(match_url: str, tab: str) -> str:
+    """Return the URL of one tab of a match page, whatever tab the link pointed at.
+
+    Team pages link to .../{match}/summary. Appending a tab to that gives
+    .../summary/commentary, which CricHeroes rejects, so any trailing tab
+    segment is replaced rather than extended.
+    """
+    base = match_url.split("?")[0].split("#")[0].rstrip("/")
+    head, _, last = base.rpartition("/")
+    if last in _MATCH_TABS:
+        base = head
+    return f"{base}/{tab}"
+
+
 def _build_commentary_url(match_url: str) -> str:
     """Return the commentary variant of a scorecard URL."""
-    base = match_url.rstrip("/")
-    parts = base.rsplit("/", 1)
-    if len(parts) == 2 and parts[1] in ("scorecard", "stats", "live", "commentary", "full-scorecard"):
-        return f"{parts[0]}/commentary"
-    return f"{base}/commentary"
+    return _match_tab_url(match_url, "commentary")
 
 
 def _normalise_ball(b: dict) -> dict:
@@ -1369,15 +1385,8 @@ def fetch_match_commentary(
     # Typical shape: https://cricheroes.com/scorecard/12345678/tournament/teamA-vs-teamB/scorecard
     # Commentary page: replace last path segment with "commentary" or "live"
     commentary_urls: list[str] = []
-    base = match_url.rstrip("/")
     for variant in ("commentary", "live", "scorecard"):
-        # Replace the last segment
-        parts = base.rsplit("/", 1)
-        if len(parts) == 2 and parts[1] in ("scorecard", "stats", "commentary", "live"):
-            commentary_urls.append(f"{parts[0]}/{variant}")
-        else:
-            commentary_urls.append(f"{base}/{variant}")
-        # De-dupe
+        commentary_urls.append(_match_tab_url(match_url, variant))
     commentary_urls = list(dict.fromkeys(commentary_urls))
 
     # Check each variant — use cache if available
@@ -1447,6 +1456,8 @@ def fetch_match_scorecard(
     }
     """
     cache_file = SCORECARD_CACHE_DIR / f"scorecard_{match_id}.html"
+    # Team-page links point at the /summary tab, which has no batting/bowling tables.
+    match_url = _match_tab_url(match_url, "scorecard")
 
     # ── Load from cache if available ──────────────────────────────────────────
     if cache_file.exists():
@@ -1707,14 +1718,71 @@ def _parse_leaderboard_stat(stat_str: str) -> dict:
 # ── Direct scraper (replaces cricheroes library) ──────────────────────────────
 
 def _extract_next_data(soup: BeautifulSoup) -> dict | None:
-    """Extract __NEXT_DATA__ JSON embedded by Next.js."""
+    """Extract page data embedded by Next.js.
+
+    Older CricHeroes pages carry a __NEXT_DATA__ script. The current App Router
+    pages do not; their data is streamed as self.__next_f.push() chunks, which
+    _next_data_from_rsc() turns back into the same props.pageProps shape.
+    """
     tag = soup.find("script", {"id": "__NEXT_DATA__"})
-    if not tag:
+    if tag:
+        try:
+            return json.loads(tag.string)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return _next_data_from_rsc(soup)
+
+
+_RSC_PUSH_RE   = re.compile(r'self\.__next_f\.push\(\[1,(".*")\]\)\s*$', re.S)
+_RSC_INNING_RE = re.compile(r'\[\{"team_id":\d+,"inning":\{')
+
+
+def _next_data_from_rsc(soup: BeautifulSoup) -> dict | None:
+    """Rebuild {"props": {"pageProps": {...}}} from App Router flight data."""
+    parts: list[str] = []
+    for s in soup.find_all("script"):
+        src = s.string or ""
+        if "self.__next_f.push" not in src:
+            continue
+        m = _RSC_PUSH_RE.search(src.strip())
+        if not m:
+            continue
+        try:
+            parts.append(json.loads(m.group(1)))
+        except json.JSONDecodeError:
+            continue
+    if not parts:
         return None
-    try:
-        return json.loads(tag.string)
-    except (json.JSONDecodeError, TypeError):
+    text    = "".join(parts)
+    decoder = json.JSONDecoder()
+
+    page_props: dict = {}
+    i = text.find('{"miniScorecard"')
+    if i >= 0:
+        try:
+            obj, _ = decoder.raw_decode(text[i:])
+            page_props["miniScorecard"] = obj.get("miniScorecard") or {}
+            page_props["summaryData"]   = obj.get("summaryData") or {}
+        except json.JSONDecodeError:
+            pass
+
+    m = _RSC_INNING_RE.search(text)
+    if m:
+        try:
+            innings, _ = decoder.raw_decode(text[m.start():])
+        except json.JSONDecodeError:
+            innings = []
+        for inn in innings:
+            # new format nests the innings metadata under "inning"; the parser expects the number
+            meta = inn.get("inning")
+            if isinstance(meta, dict):
+                inn["inning_info"] = meta
+                inn["inning"]      = meta.get("inning")
+        page_props["scorecard"] = innings
+
+    if not page_props:
         return None
+    return {"props": {"pageProps": page_props}}
 
 
 _SKILL_MAP = {
@@ -1895,6 +1963,7 @@ def _click_and_scrape_matches(
     driver,
     team_name: str,
     max_matches: int,
+    team_url: str | None = None,
 ) -> list[dict]:
     """
     Navigate to the matches sub-page and scroll to collect all match links.
@@ -1909,7 +1978,8 @@ def _click_and_scrape_matches(
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
 
-    matches_url = f"https://cricheroes.com/team-profile/{TEAM_URL}/matches"
+    # team_url is "{id}/{slug}" of the team being fetched; fall back to the configured team
+    matches_url = f"https://cricheroes.com/team-profile/{team_url or TEAM_URL}/matches"
     log.info(f"[fetcher] Loading matches page: {matches_url}")
     driver.get(matches_url)
     time.sleep(PAGE_LOAD_WAIT)
@@ -2086,7 +2156,7 @@ def fetch_all_data(max_matches: int = 100, months: int = 18,
             log.info(f"[fetcher] DOM scrape: {len(players)} players")
 
         # ── Matches sub-page (always fetch — main page may not have all matches) ─
-        matches = _click_and_scrape_matches(driver, team_name, max_matches)
+        matches = _click_and_scrape_matches(driver, team_name, max_matches, team_url=_team_url)
 
     finally:
         driver.quit()
@@ -2103,13 +2173,29 @@ def fetch_all_data(max_matches: int = 100, months: int = 18,
         log.warning("[fetcher] Selenium returned 0 players — using team.json player_ids seed")
         players = _load_player_seeds()
 
-    if not matches and players:
-        log.warning("[fetcher] Selenium returned 0 matches — using REST API match history fallback")
+    # The team page lists only the ~12 most recent matches, so always merge in the
+    # per-player match histories (REST API). Where both sources know a match, the
+    # REST entry wins: it carries the reliable date, opponent and result.
+    if players:
+        if not CH_API_KEY:
+            log.error("[fetcher] CH_API_KEY is not set — the REST API returns no matches without it, "
+                      "so only the ~12 matches on the team page will be fetched")
         try:
-            matches = fetch_team_match_list(months=months, players=players, days_hint=days_hint)
-            log.info(f"[fetcher] REST API fallback: {len(matches)} matches found")
+            api_matches = fetch_team_match_list(months=months, players=players, days_hint=days_hint)
         except Exception as _e:
-            log.warning(f"[fetcher] REST API match fallback failed: {_e}")
+            log.warning(f"[fetcher] REST API match list failed: {_e}")
+            api_matches = []
+        if api_matches:
+            merged = {m["cricheroes_match_id"]: m for m in matches if m.get("cricheroes_match_id")}
+            from_page = len(merged)
+            merged.update({m["cricheroes_match_id"]: m for m in api_matches})
+            matches = list(merged.values())
+            log.info(
+                f"[fetcher] match list merged: team page {from_page} + REST API {len(api_matches)} "
+                f"= {len(matches)} unique matches"
+            )
+        elif not matches:
+            log.warning("[fetcher] no matches from the team page or the REST API")
 
     # ── Filter by date: keep only matches within requested months ─────────────
     if months and months > 0:

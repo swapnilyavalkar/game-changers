@@ -441,7 +441,8 @@ def cmd_fetch_player_history(months, player_names, workers, delay_min, delay_max
                     "result":              match.get("result"),
                     "tournament":          match.get("tournament", ""),
                     "venue":               match.get("venue"),
-                    "is_game_changers_match":  1,
+                    # cross-team history: other teams' matches a squad member played in
+                    "is_game_changers_match":  int(match.get("is_game_changers_match", 0)),
                 })
 
                 for stat in all_stats:

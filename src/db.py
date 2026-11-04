@@ -415,8 +415,13 @@ def get_player_stats_match_ids(player_id: int) -> set:
     return {r[0] for r in rows}
 
 
-def get_player_stats_df():
-    """Return joined player+match+stats as a pandas DataFrame (all matches — Game Changers + cross-team)."""
+def get_player_stats_df(team_only: bool = True):
+    """Return joined player+match+stats as a pandas DataFrame.
+
+    team_only=True (default) keeps only our two teams' matches. Cross-team rows (games a squad
+    member played for other teams) stay in the database but are left out of every dashboard
+    total. Pass team_only=False to include them.
+    """
     import pandas as pd
     sql = """
     SELECT
@@ -441,8 +446,9 @@ def get_player_stats_df():
     FROM player_match_stats s
     JOIN players p ON p.id = s.player_id
     JOIN matches m ON m.id = s.match_id
+    {where}
     ORDER BY m.match_date DESC
-    """
+    """.format(where="WHERE m.is_game_changers_match = 1" if team_only else "")
     with get_conn() as conn:
         rows = conn.execute(sql).fetchall()
     return pd.DataFrame([dict(r) for r in rows])

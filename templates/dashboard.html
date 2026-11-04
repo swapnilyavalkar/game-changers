@@ -1833,9 +1833,11 @@
             { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
           const first = dates[0], last = dates[dates.length - 1];
           const days = Math.round((new Date(last) - new Date(first)) / 86400000) + 1;
+          const n = this.raw.team?.nct_matches;
           return {
             range: fmt(first) + ' → ' + fmt(last),
-            detail: 'All matches · ' + days + ' days · ' + dates.length + ' player appearances',
+            detail: (n ? n + ' team matches' : 'Team matches') + ' · ' + days + ' days · '
+              + dates.length + ' player appearances · games for other teams excluded',
           };
         },
 
