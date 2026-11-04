@@ -110,7 +110,7 @@ jobs:
           cp reports/data/data.json site/data/data.json
           cp reports/index.html site/index.html
           cp reports/dashboard.html site/dashboard.html
-          cp pages/players.html site/players.html
+          cp pages/players.html pages/logo.jpg site/
           touch site/.nojekyll
           cd site
           git config user.name  "github-actions[bot]"

@@ -1,163 +1,316 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Game Changers Players Performance Dashboard</title>
+  <title>Game Changers – Players Performance</title>
+  <link rel="icon" href="logo.jpg">
   <script src="https://cdn.tailwindcss.com/3.4.1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { brand: '#f59e0b' } } } };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0/dist/apexcharts.min.js"></script>
   <style>
-    ::-webkit-scrollbar { height: 7px; width: 7px; }
-    ::-webkit-scrollbar-track { background: #f8fafc; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    .shimmer { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    th[data-key] { cursor: pointer; user-select: none; }
-    th[data-key]:hover { background: #e2e8f0; }
+    body { background: #080f1e; }
+    .card { background: linear-gradient(145deg, #111827 0%, #0d1526 100%); }
+    .score-bar { transition: width 0.4s ease; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #111827; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .tab-btn { border-bottom-color: transparent; color: #94a3b8; }
+    .tab-btn:hover { color: #e2e8f0; }
+    .tab-btn.active { border-bottom-color: #f59e0b; color: #f59e0b; }
+    th[data-key] { cursor: pointer; user-select: none; white-space: nowrap; }
+    th[data-key]:hover { color: #f59e0b; }
+    .apexcharts-tooltip { background: #0f172a !important; border: 1px solid #334155 !important; color: #e2e8f0 !important; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 p-3 md:p-6 font-sans">
-  <div class="max-w-[95rem] mx-auto space-y-6">
+<body class="dark text-gray-100 min-h-screen antialiased">
 
-    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200 gap-3">
-      <div>
-        <div class="flex items-center gap-2">
-          <span class="text-2xl">🏏</span>
-          <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Game Changers Players Performance Dashboard</h1>
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-700/60 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 shrink-0">
+        <img src="logo.jpg" alt="Game Changers Logo" class="w-9 h-9 rounded-full object-cover border border-amber-500/60 shadow-md shrink-0">
+        <div>
+          <p class="text-amber-400 font-bold text-base leading-tight">Game Changers</p>
+          <p class="text-slate-500 text-xs">Players Performance</p>
         </div>
-        <p class="text-xs md:text-sm text-slate-500 mt-1">Season Analytics &amp; Squad Performance Leaderboard</p>
       </div>
       <div class="flex items-center gap-3">
-        <button id="btnRefresh" type="button" class="text-xs font-semibold px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all flex items-center gap-1.5 border border-slate-300 active:scale-95">
+        <p class="text-slate-500 text-xs hidden sm:block">Updated: <span id="updated" class="text-amber-400/80">—</span></p>
+        <a href="index.html" class="text-xs px-3 py-1.5 rounded-lg border border-slate-600/60 bg-slate-800 text-gray-300 hover:border-amber-500 hover:text-amber-400 transition">Full dashboard</a>
+        <button id="btnRefresh" type="button" class="text-xs px-3 py-1.5 rounded-lg border border-slate-600/60 bg-slate-800 text-gray-300 hover:border-amber-500 hover:text-amber-400 transition flex items-center gap-1.5">
           <span id="refreshIcon">🔄</span> Refresh
         </button>
-        <div id="statusBadge" class="text-xs font-bold px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg flex items-center gap-1.5">
-          <span class="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Loading Data...
-        </div>
       </div>
-    </header>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 border-t border-slate-800">
+      <button type="button" data-tab="board" class="tab-btn px-5 py-2.5 text-sm font-medium border-b-2 transition-colors">Squad Leaderboard</button>
+      <button type="button" data-tab="help" class="tab-btn px-5 py-2.5 text-sm font-medium border-b-2 transition-colors">Help</button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6">
+
+  <div id="view-board" class="space-y-6">
+
+    <div id="errorBox" class="hidden card rounded-2xl border border-red-500/40 p-4 text-sm text-red-300"></div>
+
+    <div class="card rounded-2xl border border-slate-700/50 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span class="text-lg">📅</span>
+      <span class="text-slate-500 text-xs uppercase tracking-widest">Data period</span>
+      <span id="dataPeriod" class="text-amber-400 font-semibold text-sm">—</span>
+      <span id="dataPeriodSub" class="text-xs text-slate-500">All matches</span>
+    </div>
 
     <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Total Runs</p>
-        <p id="kpiRuns" class="text-2xl font-black text-emerald-600 mt-1">-</p>
+      <div class="card rounded-2xl p-4 border border-slate-700/50">
+        <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Total Runs</p>
+        <p id="kpiRuns" class="text-3xl font-black text-amber-400 tabular-nums">—</p>
       </div>
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Total Wickets</p>
-        <p id="kpiWickets" class="text-2xl font-black text-blue-600 mt-1">-</p>
+      <div class="card rounded-2xl p-4 border border-slate-700/50">
+        <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Total Wickets</p>
+        <p id="kpiWickets" class="text-3xl font-black text-blue-400 tabular-nums">—</p>
       </div>
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Top Scorer</p>
-        <p id="kpiTopScorer" class="text-base font-bold text-slate-800 mt-1 truncate">-</p>
+      <div class="card rounded-2xl p-4 border border-slate-700/50">
+        <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Top Scorer</p>
+        <p id="kpiScorer" class="text-base font-bold text-white truncate mt-1">—</p>
+        <p id="kpiScorerSub" class="text-xs text-amber-400">&nbsp;</p>
       </div>
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Top Wicket Taker</p>
-        <p id="kpiTopBowler" class="text-base font-bold text-slate-800 mt-1 truncate">-</p>
+      <div class="card rounded-2xl p-4 border border-slate-700/50">
+        <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Top Wicket Taker</p>
+        <p id="kpiBowler" class="text-base font-bold text-white truncate mt-1">—</p>
+        <p id="kpiBowlerSub" class="text-xs text-blue-400">&nbsp;</p>
       </div>
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 col-span-2 md:col-span-1">
-        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Form Leader</p>
-        <p id="kpiForm" class="text-base font-bold text-purple-600 mt-1 truncate">-</p>
-      </div>
-    </section>
-
-    <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
-            <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-sm">🏏</span> Top 5 Run Scorers
-          </h2>
-          <span class="text-xs text-slate-400 font-medium">Ranked by Runs</span>
-        </div>
-        <div class="relative h-64"><canvas id="battingChart"></canvas></div>
-      </div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
-            <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 text-sm">🎯</span> Top 5 Wicket Takers
-          </h2>
-          <span class="text-xs text-slate-400 font-medium">Ranked by Wickets</span>
-        </div>
-        <div class="relative h-64"><canvas id="bowlingChart"></canvas></div>
+      <div class="card rounded-2xl p-4 border border-slate-700/50 col-span-2 md:col-span-1">
+        <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Form Leader</p>
+        <p id="kpiForm" class="text-base font-bold text-white truncate mt-1">—</p>
+        <p id="kpiFormSub" class="text-xs text-emerald-400">&nbsp;</p>
       </div>
     </section>
 
-    <section id="tiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4"></section>
-
-    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div class="p-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-50 to-white">
-        <div>
-          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">📊 Squad Performance Matrix</h2>
-          <p class="text-xs text-slate-500 mt-0.5">All formats combined. Click a column header to sort.</p>
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="card rounded-2xl border border-slate-700/50 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700/50 flex items-center gap-2">
+          <span class="text-lg">🏏</span>
+          <h3 class="text-amber-400 font-semibold text-sm">Top 5 Run Scorers</h3>
+          <span class="text-xs text-slate-500 ml-auto">Ranked by runs</span>
         </div>
-        <div class="relative w-full md:w-72">
-          <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">🔍</span>
-          <input type="text" id="playerSearch" placeholder="Search player name..."
-                 class="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm">
+        <div id="battingChart" class="p-2"></div>
+      </div>
+      <div class="card rounded-2xl border border-slate-700/50 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700/50 flex items-center gap-2">
+          <span class="text-lg">⚡</span>
+          <h3 class="text-blue-400 font-semibold text-sm">Top 5 Wicket Takers</h3>
+          <span class="text-xs text-slate-500 ml-auto">Ranked by wickets</span>
+        </div>
+        <div id="bowlingChart" class="p-2"></div>
+      </div>
+    </section>
+
+    <section id="tiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></section>
+
+    <section class="card rounded-2xl border border-slate-700/50 overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-700/50 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">📊</span>
+          <h3 class="text-amber-400 font-semibold text-sm">Squad Performance Matrix</h3>
+          <span id="playerCount" class="text-xs text-slate-500">0 players</span>
+        </div>
+        <div class="sm:ml-auto w-full sm:w-64">
+          <input id="playerSearch" type="text" placeholder="Search player…"
+            class="w-full bg-slate-800 border border-slate-600/60 text-gray-300 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-500 placeholder-slate-500">
         </div>
       </div>
-      <div class="overflow-x-auto max-h-[600px] relative">
-        <table class="w-full text-left text-xs whitespace-nowrap border-collapse">
-          <thead id="tableHead" class="sticky top-0 z-10 bg-slate-100 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200 shadow-sm"></thead>
-          <tbody id="tableBody" class="divide-y divide-slate-100 font-medium text-slate-700">
-            <tr><td colspan="18" class="text-center py-10 text-slate-400 shimmer">Loading squad data...</td></tr>
+      <div class="overflow-x-auto max-h-[640px] overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead id="tableHead" class="sticky top-0 z-10 bg-slate-900"></thead>
+          <tbody id="tableBody" class="divide-y divide-slate-800/60"></tbody>
+        </table>
+      </div>
+      <p id="footNote" class="px-3 py-2.5 border-t border-slate-800 text-[11px] text-slate-500"></p>
+    </section>
+
+  </div><!-- /view-board -->
+
+  <div id="view-help" class="hidden space-y-6">
+
+    <section class="card rounded-2xl border border-slate-700/50 p-5">
+      <h2 class="text-amber-400 font-semibold text-base mb-3 flex items-center gap-2"><span>📖</span> How to read this page</h2>
+      <ul class="space-y-2 text-sm text-slate-300 list-disc pl-5 marker:text-amber-500/60">
+        <li><b class="text-white">Data period</b> – earliest to latest match date found in the data. Every number on the page covers all matches in that window, all formats (6, 10, 15 and 20 overs) combined.</li>
+        <li><b class="text-white">Summary cards</b> – team totals across the shown players, plus the top run scorer, top wicket taker and the player with the highest form score.</li>
+        <li><b class="text-white">Charts</b> – the five highest run scorers and wicket takers.</li>
+        <li><b class="text-white">Leader tiles</b> – the top three players for one stat each. Some tiles need a minimum number of balls, innings or overs, so tiny samples don't win.</li>
+        <li><b class="text-white">Squad Performance Matrix</b> – one row per player. Click a column header to sort, click again to reverse. Type in the search box to filter by name.</li>
+        <li><b class="text-white">Refresh</b> reloads the latest data file. <b class="text-white">Updated</b> shows the date the data file was generated. The data is scheduled to refresh every Sunday at 9 pm UK time.</li>
+        <li><b class="text-white">Full dashboard</b> opens the detailed analytics view (player profiles, squad builder, strategy).</li>
+        <li>Players with no matches in the period are not shown.</li>
+      </ul>
+    </section>
+
+    <section class="card rounded-2xl border border-slate-700/50 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-700/50"><h2 class="text-amber-400 font-semibold text-base flex items-center gap-2"><span>🧮</span> What each column means</h2></div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-slate-500 text-xs uppercase border-b border-slate-800">
+            <th class="text-left px-5 py-2.5 font-medium">Column</th><th class="text-left px-3 py-2.5 font-medium">Meaning</th><th class="text-left px-3 py-2.5 font-medium">How it is calculated</th>
+          </tr></thead>
+          <tbody class="divide-y divide-slate-800/60 align-top">
+            <tr><td class="px-5 py-2.5 font-medium text-white">M</td><td class="px-3 py-2.5">Matches played</td><td class="px-3 py-2.5 text-slate-400">Matches the player appeared in.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Inn</td><td class="px-3 py-2.5">Innings batted</td><td class="px-3 py-2.5 text-slate-400">Matches where the player actually batted (not "yet to bat").</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-amber-400">Runs</td><td class="px-3 py-2.5">Total runs scored</td><td class="px-3 py-2.5 text-slate-400">Sum of runs across all innings.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">HS</td><td class="px-3 py-2.5">Highest score</td><td class="px-3 py-2.5 text-slate-400">Most runs in a single innings.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Avg</td><td class="px-3 py-2.5">Batting average</td><td class="px-3 py-2.5 text-slate-400">Runs ÷ times dismissed. Not-outs are not counted as dismissals, so a player never dismissed shows their total runs.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">SR</td><td class="px-3 py-2.5">Strike rate</td><td class="px-3 py-2.5 text-slate-400">Runs ÷ balls faced × 100.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">4s / 6s</td><td class="px-3 py-2.5">Boundaries</td><td class="px-3 py-2.5 text-slate-400">Fours and sixes hit, summed over all innings.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Overs</td><td class="px-3 py-2.5">Overs bowled</td><td class="px-3 py-2.5 text-slate-400">Total overs bowled (e.g. 17.3 = 17 overs and 3 balls).</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-blue-400">Wkts</td><td class="px-3 py-2.5">Wickets taken</td><td class="px-3 py-2.5 text-slate-400">Sum of wickets across all matches.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Econ</td><td class="px-3 py-2.5">Economy rate</td><td class="px-3 py-2.5 text-slate-400">Runs conceded ÷ overs bowled. Lower is better.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Bowl Avg</td><td class="px-3 py-2.5">Bowling average</td><td class="px-3 py-2.5 text-slate-400">Runs conceded ÷ wickets. Lower is better. With 0 wickets the table shows runs conceded instead, so read it only for bowlers with wickets (the leader tile ignores 0-wicket bowlers).</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Form</td><td class="px-3 py-2.5">Overall form score, 0–100</td><td class="px-3 py-2.5 text-slate-400">Weighted blend of recent form, strike rate / economy, career average and consistency. See "Form score" below. Bar: green 70+, amber 40–69, red under 40.</td></tr>
+            <tr><td class="px-5 py-2.5 font-medium text-white">Status</td><td class="px-3 py-2.5">In Form / Average / Out of Form</td><td class="px-3 py-2.5 text-slate-400">Recent batting vs the player's own career. See "Status" below.</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
-        <span id="playerCount">Showing 0 players</span>
-        <span id="footNote" class="italic text-[11px] text-slate-400"></span>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="card rounded-2xl border border-slate-700/50 p-5">
+        <h2 class="text-amber-400 font-semibold text-base mb-3 flex items-center gap-2"><span>⭐</span> Form score (0–100)</h2>
+        <p class="text-sm text-slate-300 mb-2">Batting and bowling are each scored 0–100, then combined by role. Each uses four parts:</p>
+        <table class="w-full text-sm mb-3">
+          <thead><tr class="text-slate-500 text-xs uppercase border-b border-slate-800"><th class="text-left py-1.5 font-medium">Part</th><th class="text-right py-1.5 font-medium">Weight</th></tr></thead>
+          <tbody class="divide-y divide-slate-800/60 text-slate-300">
+            <tr><td class="py-1.5">Recent form (last 5 matches)</td><td class="py-1.5 text-right text-amber-400 font-semibold">40%</td></tr>
+            <tr><td class="py-1.5">Strike rate (batting) / economy (bowling)</td><td class="py-1.5 text-right text-amber-400 font-semibold">30%</td></tr>
+            <tr><td class="py-1.5">Batting average / wickets taken</td><td class="py-1.5 text-right text-amber-400 font-semibold">20%</td></tr>
+            <tr><td class="py-1.5">Consistency (steadiness of scores or economy)</td><td class="py-1.5 text-right text-amber-400 font-semibold">10%</td></tr>
+          </tbody>
+        </table>
+        <ul class="space-y-1.5 text-sm text-slate-400 list-disc pl-5 marker:text-amber-500/60">
+          <li><b class="text-slate-200">Batting benchmarks:</b> average 20 = full marks, strike rate 120 = full marks. Recent form blends 60% average and 40% strike rate.</li>
+          <li><b class="text-slate-200">Bowling benchmarks:</b> economy 9 or better = full marks, 16 or worse = zero, linear in between. 15 wickets = full marks.</li>
+          <li><b class="text-slate-200">Bowling discipline:</b> wides, no-balls and boundaries conceded per over move the bowling score by up to ±5.</li>
+          <li><b class="text-slate-200">Role:</b> batsman = batting score; bowler = bowling score; all-rounder = 55% batting + 45% bowling; wicket-keeper = 75% batting + a keeping bonus.</li>
+          <li><b class="text-slate-200">Fielding bonus</b> (up to +5) exists in the formula, but catches are not collected yet, so it adds nothing today.</li>
+        </ul>
+      </div>
+
+      <div class="card rounded-2xl border border-slate-700/50 p-5">
+        <h2 class="text-amber-400 font-semibold text-base mb-3 flex items-center gap-2"><span>🚦</span> Status badge</h2>
+        <p class="text-sm text-slate-300 mb-2">Compares the player's last 5 matches with their own career:</p>
+        <p class="text-sm text-slate-400 mb-3 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 font-mono text-xs">score = 0.6 × (recent avg ÷ career avg) + 0.4 × (recent SR ÷ career SR)</p>
+        <ul class="space-y-1.5 text-sm text-slate-300">
+          <li><span class="text-xs px-2 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-400 border-emerald-500/30">In Form</span> &nbsp;score 1.2 or more</li>
+          <li><span class="text-xs px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-400 border-amber-500/30">Average</span> &nbsp;between 0.6 and 1.2</li>
+          <li><span class="text-xs px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/30">Out of Form</span> &nbsp;score 0.6 or less</li>
+          <li><span class="text-xs px-2 py-0.5 rounded-full border bg-slate-700/50 text-slate-500 border-slate-600/50">Insufficient Data</span> &nbsp;no career batting average yet</li>
+        </ul>
+        <p class="text-xs text-slate-500 mt-3">Status is about batting form only, while the Form score also includes bowling, so a bowler can have a high score and a modest status.</p>
+
+        <h2 class="text-amber-400 font-semibold text-base mt-6 mb-3 flex items-center gap-2"><span>🏅</span> Role colours</h2>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span class="px-2 py-0.5 rounded-full border bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Batsman</span>
+          <span class="px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/30">Bowler</span>
+          <span class="px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">All-rounder</span>
+          <span class="px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30">Keeper</span>
+        </div>
       </div>
     </section>
 
-  </div>
+    <section class="card rounded-2xl border border-slate-700/50 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-700/50"><h2 class="text-amber-400 font-semibold text-base flex items-center gap-2"><span>🏆</span> Leader tiles – rules</h2></div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-slate-500 text-xs uppercase border-b border-slate-800">
+            <th class="text-left px-5 py-2.5 font-medium">Tile</th><th class="text-left px-3 py-2.5 font-medium">Ranked by</th><th class="text-left px-3 py-2.5 font-medium">Minimum to qualify</th>
+          </tr></thead>
+          <tbody class="divide-y divide-slate-800/60 text-slate-300">
+            <tr><td class="px-5 py-2 text-white">Boundary Kings</td><td class="px-3 py-2">Most fours</td><td class="px-3 py-2 text-slate-400">At least 1 four</td></tr>
+            <tr><td class="px-5 py-2 text-white">Six Hitters</td><td class="px-3 py-2">Most sixes</td><td class="px-3 py-2 text-slate-400">At least 1 six</td></tr>
+            <tr><td class="px-5 py-2 text-white">Strike Rate</td><td class="px-3 py-2">Highest strike rate</td><td class="px-3 py-2 text-slate-400">50 balls faced</td></tr>
+            <tr><td class="px-5 py-2 text-white">Highest Scores</td><td class="px-3 py-2">Best single innings</td><td class="px-3 py-2 text-slate-400">—</td></tr>
+            <tr><td class="px-5 py-2 text-white">Batting Average</td><td class="px-3 py-2">Highest average</td><td class="px-3 py-2 text-slate-400">5 innings</td></tr>
+            <tr><td class="px-5 py-2 text-white">Best Economy</td><td class="px-3 py-2">Lowest economy</td><td class="px-3 py-2 text-slate-400">10 overs bowled</td></tr>
+            <tr><td class="px-5 py-2 text-white">Bowling Average</td><td class="px-3 py-2">Lowest bowling average</td><td class="px-3 py-2 text-slate-400">10 overs bowled and at least 1 wicket</td></tr>
+            <tr><td class="px-5 py-2 text-white">Most Matches</td><td class="px-3 py-2">Appearances</td><td class="px-3 py-2 text-slate-400">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card rounded-2xl border border-slate-700/50 p-5">
+      <h2 class="text-amber-400 font-semibold text-base mb-3 flex items-center gap-2"><span>⚠️</span> Good to know</h2>
+      <ul class="space-y-2 text-sm text-slate-300 list-disc pl-5 marker:text-amber-500/60">
+        <li>Small samples swing the numbers: a player with 2 innings can top a list. Check M and Inn before drawing conclusions.</li>
+        <li>Fielding stats (catches, dropped catches) and MVP points are not available in the data, so they are not shown.</li>
+        <li>Numbers come from CricHeroes scorecards. If a scorecard is missing or incomplete there, it is missing here.</li>
+      </ul>
+    </section>
+
+  </div><!-- /view-help -->
+
+</main>
 
   <script>
     const DATA_URL = 'data/data.json';
     const num = v => Number(v) || 0;
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-    // key, label, kind: int | dec1 | dec2 | text; hi = highlight colour for the cell
+    const ROLE_CLASS = {
+      batsman:       'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+      bowler:        'bg-blue-500/10 text-blue-400 border-blue-500/30',
+      all_rounder:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+      wicket_keeper: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    };
+    const ROLE_LABEL = { batsman: 'Batsman', bowler: 'Bowler', all_rounder: 'All-rounder', wicket_keeper: 'Keeper' };
+    const FORM_CLASS = {
+      'In Form':           'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      'Out of Form':       'bg-red-500/20 text-red-400 border-red-500/30',
+      'Insufficient Data': 'bg-slate-700/50 text-slate-500 border-slate-600/50',
+    };
+    const roleClass = r => ROLE_CLASS[r] || 'bg-slate-700/50 text-slate-400 border-slate-600/50';
+    const formClass = b => FORM_CLASS[b] || 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+
+    // text columns sort A-Z first; the rest sort high-to-low first (econ / bowl avg: low-to-high)
     const COLUMNS = [
-      { key: 'name',   label: 'Player',   kind: 'text' },
-      { key: 'role',   label: 'Role',     kind: 'text' },
-      { key: 'mat',    label: 'Mat',      kind: 'int'  },
-      { key: 'inn',    label: 'Inn',      kind: 'int'  },
-      { key: 'runs',   label: 'Runs',     kind: 'int',  hi: 'bg-emerald-100 text-emerald-800' },
-      { key: 'hs',     label: 'HS',       kind: 'int'  },
-      { key: 'avg',    label: 'Avg',      kind: 'dec1' },
-      { key: 'sr',     label: 'SR',       kind: 'dec1' },
-      { key: 'fours',  label: '4s',       kind: 'int'  },
-      { key: 'sixes',  label: '6s',       kind: 'int'  },
-      { key: 'overs',  label: 'Overs',    kind: 'dec1' },
-      { key: 'wkts',   label: 'Wkts',     kind: 'int',  hi: 'bg-blue-100 text-blue-800' },
-      { key: 'conc',   label: 'Runs Con', kind: 'int'  },
-      { key: 'econ',   label: 'Econ',     kind: 'dec2' },
-      { key: 'bavg',   label: 'Bowl Avg', kind: 'dec1' },
-      { key: 'badge',  label: 'Form',     kind: 'text' },
-      { key: 'score',  label: 'Score',    kind: 'dec1', hi: 'bg-purple-100 text-purple-800' },
+      { key: 'rank',  label: '#',        align: 'left',  first: 1 },
+      { key: 'name',  label: 'Player',   align: 'left',  first: 1 },
+      { key: 'role',  label: 'Role',     align: 'left',  first: 1 },
+      { key: 'mat',   label: 'M',        align: 'right' },
+      { key: 'inn',   label: 'Inn',      align: 'right' },
+      { key: 'runs',  label: 'Runs',     align: 'right' },
+      { key: 'hs',    label: 'HS',       align: 'right' },
+      { key: 'avg',   label: 'Avg',      align: 'right' },
+      { key: 'sr',    label: 'SR',       align: 'right' },
+      { key: 'fours', label: '4s',       align: 'right' },
+      { key: 'sixes', label: '6s',       align: 'right' },
+      { key: 'overs', label: 'Overs',    align: 'right' },
+      { key: 'wkts',  label: 'Wkts',     align: 'right' },
+      { key: 'econ',  label: 'Econ',     align: 'right', first: 1 },
+      { key: 'bavg',  label: 'Bowl Avg', align: 'right', first: 1 },
+      { key: 'score', label: 'Form',     align: 'right' },
+      { key: 'badge', label: 'Status',   align: 'left',  first: 1 },
     ];
 
+    // each tile: title, icon, accent colour, filter, sort key + direction, value formatter
     const TILES = [
-      { id: 'fours',  title: 'Boundary Kings (4s)',   icon: '⚡', box: 'border-slate-200', ttl: 'text-slate-400', ico: 'bg-amber-50 text-amber-600',   pill: 'bg-amber-100 text-amber-800',   empty: 'No data' },
-      { id: 'sixes',  title: 'Six Hitters (6s)',      icon: '🚀', box: 'border-slate-200', ttl: 'text-slate-400', ico: 'bg-rose-50 text-rose-600',     pill: 'bg-rose-100 text-rose-800',     empty: 'No data' },
-      { id: 'sr',     title: 'Strike Rate (≥50 balls)', icon: '🔥', box: 'border-teal-200 bg-teal-50/20', ttl: 'text-teal-700', ico: 'bg-teal-100 text-teal-700', pill: 'bg-teal-100 text-teal-800', empty: 'Min 50 balls needed' },
-      { id: 'hs',     title: 'Highest Scores',        icon: '💯', box: 'border-slate-200', ttl: 'text-slate-400', ico: 'bg-emerald-50 text-emerald-600', pill: 'bg-emerald-100 text-emerald-800', empty: 'No data' },
-      { id: 'mat',    title: 'Most Matches',          icon: '🧢', box: 'border-slate-200', ttl: 'text-slate-400', ico: 'bg-sky-50 text-sky-600',       pill: 'bg-sky-100 text-sky-800',       empty: 'No data' },
-      { id: 'econ',   title: 'Best Econ (≥10 Ov)',    icon: '🎯', box: 'border-slate-200', ttl: 'text-slate-400', ico: 'bg-blue-50 text-blue-600',     pill: 'bg-blue-100 text-blue-800',     empty: '<10 overs bowled' },
-      { id: 'consistent', title: 'Consistent (Avg > 30)', icon: '👑', box: 'border-slate-200', ttl: 'text-slate-400', ico: 'bg-indigo-50 text-indigo-600', pill: 'bg-purple-100 text-purple-800', empty: 'No player avg > 30' },
+      { title: 'Boundary Kings',   sub: 'Most fours',            icon: '⚡', c: 'text-amber-400',   key: 'fours', dir: -1, ok: p => p.fours > 0,  val: p => [p.fours, '4s'] },
+      { title: 'Six Hitters',      sub: 'Most sixes',            icon: '🚀', c: 'text-rose-400',    key: 'sixes', dir: -1, ok: p => p.sixes > 0,  val: p => [p.sixes, '6s'] },
+      { title: 'Strike Rate',      sub: 'Min 50 balls faced',    icon: '🔥', c: 'text-orange-400',  key: 'sr',    dir: -1, ok: p => p.balls >= 50, val: p => [p.sr.toFixed(1), p.balls + ' balls'] },
+      { title: 'Highest Scores',   sub: 'Best single innings',   icon: '💯', c: 'text-emerald-400', key: 'hs',    dir: -1, ok: p => p.hs > 0,     val: p => [p.hs, 'runs'] },
+      { title: 'Batting Average',  sub: 'Min 5 innings',         icon: '👑', c: 'text-purple-400',  key: 'avg',   dir: -1, ok: p => p.inn >= 5 && p.avg > 0, val: p => [p.avg.toFixed(1), p.inn + ' inns'] },
+      { title: 'Best Economy',     sub: 'Min 10 overs bowled',   icon: '🎯', c: 'text-blue-400',    key: 'econ',  dir: 1,  ok: p => p.overs >= 10 && p.econ > 0, val: p => [p.econ.toFixed(2), p.overs + ' ov'] },
+      { title: 'Bowling Average',  sub: 'Min 10 overs bowled',   icon: '🧤', c: 'text-cyan-400',    key: 'bavg',  dir: 1,  ok: p => p.overs >= 10 && p.wkts > 0 && p.bavg > 0, val: p => [p.bavg.toFixed(1), p.wkts + ' wkts'] },
+      { title: 'Most Matches',     sub: 'Appearances',           icon: '🧢', c: 'text-sky-400',     key: 'mat',   dir: -1, ok: p => p.mat > 0,    val: p => [p.mat, 'matches'] },
     ];
 
     let players = [];
     let hiddenCount = 0;
-    let sortKey = 'runs';
+    let sortKey = 'score';
     let sortDir = -1;
-    let batChart = null, bowlChart = null;
-
-    function prettyRole(r) {
-      if (!r || r === 'unknown') return '-';
-      return String(r).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace('All Rounder', 'All-rounder');
-    }
+    const charts = {};
 
     function buildPlayers(data) {
       return (data.players || []).map(p => {
@@ -166,7 +319,8 @@
         const sum = k => rm.reduce((s, m) => s + (m.yet_to_bat ? 0 : num(m[k])), 0);
         return {
           name: p.name || '-',
-          role: prettyRole(p.role),
+          roleRaw: p.role || 'unknown',
+          role: ROLE_LABEL[p.role] || '-',
           mat: num(f.matches_played) || rm.length,
           inn: num(f.innings_batted),
           runs: num(f.runs_total),
@@ -178,7 +332,6 @@
           sixes: sum('sixes'),
           overs: num(f.overs_bowled_total),
           wkts: num(f.wickets_total),
-          conc: sum('runs_conceded'),
           econ: num(f.bowling_economy),
           bavg: num(f.bowling_avg),
           badge: p.form_badge || '-',
@@ -187,110 +340,136 @@
       });
     }
 
+    const fmtDate = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+    function renderPeriod(data) {
+      const dates = (data.players || []).flatMap(p => (p.recent_matches || []).map(m => m.date)).filter(Boolean).sort();
+      const el = document.getElementById('dataPeriod'), sub = document.getElementById('dataPeriodSub');
+      if (!dates.length) { el.textContent = '—'; sub.textContent = ''; return; }
+      const first = dates[0], last = dates[dates.length - 1];
+      const days = Math.round((new Date(last) - new Date(first)) / 86400000) + 1;
+      el.textContent = `${fmtDate(first)} → ${fmtDate(last)}`;
+      sub.textContent = `All matches · ${days} days · ${dates.length} player appearances`;
+    }
+
     const pickTop = (arr, key, n, dir = -1) => [...arr].sort((a, b) => dir * (a[key] - b[key])).slice(0, n);
-
-    function fmt(col, v) {
-      if (col.kind === 'text') return v === '' || v == null ? '-' : esc(v);
-      if (col.kind === 'int') return String(v);
-      if (!v) return '-';
-      return v.toFixed(col.kind === 'dec2' ? 2 : 1);
-    }
-
-    function setBadge(cls, html) {
-      const b = document.getElementById('statusBadge');
-      b.className = 'text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 ' + cls;
-      b.innerHTML = html;
-    }
 
     function renderKpis(all) {
       const sc = pickTop(all, 'runs', 1)[0], bw = pickTop(all, 'wkts', 1)[0], fm = pickTop(all, 'score', 1)[0];
-      document.getElementById('kpiRuns').textContent = all.reduce((s, p) => s + p.runs, 0).toLocaleString();
-      document.getElementById('kpiWickets').textContent = all.reduce((s, p) => s + p.wkts, 0).toLocaleString();
-      document.getElementById('kpiTopScorer').textContent = sc && sc.runs ? `${sc.name} · ${sc.runs}` : '-';
-      document.getElementById('kpiTopBowler').textContent = bw && bw.wkts ? `${bw.name} · ${bw.wkts}` : '-';
-      document.getElementById('kpiForm').textContent = fm && fm.score ? `${fm.name} · ${fm.score.toFixed(1)}` : '-';
+      const set = (id, v) => { document.getElementById(id).textContent = v; };
+      set('kpiRuns', all.reduce((s, p) => s + p.runs, 0).toLocaleString());
+      set('kpiWickets', all.reduce((s, p) => s + p.wkts, 0).toLocaleString());
+      set('kpiScorer', sc ? sc.name : '—');        set('kpiScorerSub', sc ? sc.runs + ' runs' : '');
+      set('kpiBowler', bw ? bw.name : '—');        set('kpiBowlerSub', bw ? bw.wkts + ' wkts' : '');
+      set('kpiForm', fm ? fm.name : '—');          set('kpiFormSub', fm ? 'Form score ' + fm.score.toFixed(1) : '');
     }
 
-    function renderCharts(all) {
-      if (typeof Chart === 'undefined') return;
-      if (batChart) batChart.destroy();
-      if (bowlChart) bowlChart.destroy();
-      const mk = (id, rows, key, label, color) => new Chart(document.getElementById(id).getContext('2d'), {
-        type: 'bar',
-        data: { labels: rows.map(p => p.name), datasets: [{ label, data: rows.map(p => p[key]), backgroundColor: color, borderRadius: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    function renderChart(id, rows, key, label, color) {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new ApexCharts(document.getElementById(id), {
+        chart: { type: 'bar', height: 250, background: 'transparent', toolbar: { show: false }, fontFamily: 'inherit' },
+        theme: { mode: 'dark' },
+        series: [{ name: label, data: rows.map(p => p[key]) }],
+        xaxis: { categories: rows.map(p => p.name), labels: { style: { colors: '#94a3b8', fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+        yaxis: { labels: { style: { colors: '#cbd5e1', fontSize: '12px' }, maxWidth: 150 } },
+        plotOptions: { bar: { horizontal: true, borderRadius: 5, barHeight: '58%' } },
+        colors: [color],
+        dataLabels: { enabled: true, style: { fontSize: '11px', fontWeight: 700, colors: ['#0f172a'] } },
+        grid: { borderColor: '#1e293b', strokeDashArray: 3 },
+        tooltip: { theme: 'dark' },
+        legend: { show: false },
       });
-      batChart = mk('battingChart', pickTop(all, 'runs', 5), 'runs', 'Total Runs', '#10b981');
-      bowlChart = mk('bowlingChart', pickTop(all, 'wkts', 5), 'wkts', 'Wickets', '#3b82f6');
+      charts[id].render();
     }
 
     function renderTiles(all) {
-      const lists = {
-        fours: pickTop(all.filter(p => p.fours > 0), 'fours', 3).map(p => [p.name, `${p.fours} 4s`]),
-        sixes: pickTop(all.filter(p => p.sixes > 0), 'sixes', 3).map(p => [p.name, `${p.sixes} 6s`]),
-        sr: pickTop(all.filter(p => p.balls >= 50), 'sr', 3).map(p => [p.name, `${p.sr.toFixed(1)} <span class="text-[9px] font-normal">(${p.balls}b)</span>`]),
-        hs: pickTop(all.filter(p => p.hs > 0), 'hs', 3).map(p => [p.name, String(p.hs)]),
-        mat: pickTop(all.filter(p => p.mat > 0), 'mat', 3).map(p => [p.name, `${p.mat} mat`]),
-        econ: pickTop(all.filter(p => p.overs >= 10 && p.econ > 0), 'econ', 3, 1).map(p => [p.name, `${p.econ.toFixed(2)} <span class="text-[9px] font-normal">(${p.overs}o)</span>`]),
-        consistent: pickTop(all.filter(p => p.avg > 30 && p.inn >= 3), 'avg', 3).map(p => [p.name, `${p.avg.toFixed(1)} avg`]),
-      };
       document.getElementById('tiles').innerHTML = TILES.map(t => {
-        const rows = lists[t.id];
+        const rows = pickTop(all.filter(t.ok), t.key, 3, t.dir);
         const body = rows.length
-          ? rows.map(([name, val], i) => `
-              <div class="flex justify-between items-center">
-                <span class="truncate max-w-[110px] font-semibold text-slate-700">${i + 1}. ${esc(name)}</span>
-                <span class="px-1.5 py-0.5 ${t.pill} rounded font-bold text-[11px]">${val}</span>
-              </div>`).join('')
-          : `<span class="text-slate-400 text-[11px]">${t.empty}</span>`;
+          ? rows.map((p, i) => {
+              const [v, unit] = t.val(p);
+              return `
+                <div class="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-slate-700/30 transition">
+                  <span class="text-slate-600 text-xs w-4 text-center shrink-0">${i + 1}</span>
+                  <span class="text-sm font-medium flex-1 min-w-0 truncate" title="${esc(p.name)}">${esc(p.name)}</span>
+                  <span class="${t.c} font-bold text-sm tabular-nums whitespace-nowrap">${v}</span>
+                  <span class="text-slate-500 text-xs w-14 text-right whitespace-nowrap">${esc(unit)}</span>
+                </div>`;
+            }).join('')
+          : '<p class="text-slate-600 text-xs text-center py-6">Not enough data yet</p>';
         return `
-          <div class="bg-white p-4 rounded-2xl shadow-sm border ${t.box} hover:shadow-md transition-shadow">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-[11px] font-bold uppercase tracking-wider ${t.ttl}">${t.title}</span>
-              <span class="text-base p-1 ${t.ico} rounded-lg">${t.icon}</span>
+          <div class="card rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-700/50 flex items-center gap-2">
+              <span class="text-lg">${t.icon}</span>
+              <h3 class="${t.c} font-semibold text-sm">${t.title}</h3>
+              <span class="text-xs text-slate-500 ml-auto whitespace-nowrap">${t.sub}</span>
             </div>
-            <div class="space-y-1.5 text-xs text-slate-600">${body}</div>
+            <div class="p-3 space-y-1 min-h-[132px]">${body}</div>
           </div>`;
       }).join('');
     }
 
     function renderHead() {
-      document.getElementById('tableHead').innerHTML = '<tr>' + COLUMNS.map((c, i) => {
-        const arrow = c.key === sortKey ? (sortDir < 0 ? ' ▼' : ' ▲') : '';
-        const sticky = i === 0 ? 'sticky left-0 bg-slate-100 z-20 shadow-[1px_0_0_0_#e2e8f0]' : '';
-        return `<th data-key="${c.key}" class="px-4 py-3 text-slate-700 font-semibold ${sticky}">${c.label}${arrow}</th>`;
-      }).join('') + '</tr>';
+      document.getElementById('tableHead').innerHTML =
+        '<tr class="text-slate-500 text-xs uppercase border-b border-slate-800">' +
+        COLUMNS.map((c, i) => {
+          const arrow = c.key === sortKey ? (sortDir < 0 ? ' ▼' : ' ▲') : '';
+          const sortable = c.key !== 'rank' ? `data-key="${c.key}"` : '';
+          const act = c.key === sortKey ? ' text-amber-400' : '';
+          return `<th ${sortable} class="text-${c.align} px-3 py-2.5 font-medium${act}${i === 1 ? ' sticky left-0 bg-slate-900 z-20' : ''}">${c.label}${arrow}</th>`;
+        }).join('') + '</tr>';
     }
 
     function renderRows() {
       const q = document.getElementById('playerSearch').value.toLowerCase().trim();
       const col = COLUMNS.find(c => c.key === sortKey);
-      let rows = players.filter(p => !q || p.name.toLowerCase().includes(q));
-      rows.sort((a, b) => {
-        const x = a[sortKey], y = b[sortKey];
-        return sortDir * (col.kind === 'text' ? String(x).localeCompare(String(y)) : x - y);
-      });
+      const textSort = ['name', 'role', 'badge'].includes(sortKey);
+      const rows = players.filter(p => !q || p.name.toLowerCase().includes(q));
+      rows.sort((a, b) => sortDir * (textSort ? String(a[sortKey]).localeCompare(String(b[sortKey])) : a[sortKey] - b[sortKey]));
+      document.getElementById('playerCount').textContent = rows.length + ' players';
       const tbody = document.getElementById('tableBody');
-      document.getElementById('playerCount').textContent = `Showing ${rows.length} players`;
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="18" class="text-center py-6 text-slate-400">No players found matching your query.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="17" class="px-4 py-8 text-center text-slate-600 text-sm">No players found.</td></tr>';
         return;
       }
-      tbody.innerHTML = rows.map((p, r) => {
-        const bg = r % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
-        const cells = COLUMNS.map((c, i) => {
-          const sticky = i === 0 ? `sticky left-0 ${bg} group-hover:bg-indigo-50/60 z-10 font-bold text-slate-900 shadow-[1px_0_0_0_#e2e8f0]` : '';
-          let v = fmt(c, p[c.key]);
-          if (c.hi && p[c.key] > 0) v = `<span class="px-2 py-0.5 rounded-md ${c.hi} font-bold">${v}</span>`;
-          return `<td class="px-4 py-2.5 ${sticky}">${v}</td>`;
-        }).join('');
-        return `<tr class="${bg} hover:bg-indigo-50/60 transition-colors group">${cells}</tr>`;
+      const dash = (v, f) => v > 0 ? f(v) : '<span class="text-slate-600">—</span>';
+      tbody.innerHTML = rows.map((p, i) => {
+        const bar = p.score >= 70 ? 'bg-emerald-400' : p.score >= 40 ? 'bg-amber-400' : 'bg-red-400';
+        return `
+          <tr class="hover:bg-slate-700/20 transition group">
+            <td class="px-3 py-2.5 text-slate-600 group-hover:text-slate-400">${i + 1}</td>
+            <td class="px-3 py-2.5 font-medium text-white whitespace-nowrap sticky left-0 bg-slate-900 group-hover:bg-slate-800 z-10">${esc(p.name)}</td>
+            <td class="px-3 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${roleClass(p.roleRaw)}">${esc(p.role)}</span></td>
+            <td class="px-3 py-2.5 text-right text-slate-400 tabular-nums">${p.mat}</td>
+            <td class="px-3 py-2.5 text-right text-slate-400 tabular-nums">${p.inn}</td>
+            <td class="px-3 py-2.5 text-right text-amber-400 font-semibold tabular-nums">${p.runs}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${p.hs}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${dash(p.avg, v => v.toFixed(1))}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${dash(p.sr, v => v.toFixed(1))}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${p.fours}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${p.sixes}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400">${dash(p.overs, v => v.toFixed(1))}</td>
+            <td class="px-3 py-2.5 text-right text-blue-400 font-semibold tabular-nums">${p.wkts}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${dash(p.econ, v => v.toFixed(2))}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums">${dash(p.bavg, v => v.toFixed(1))}</td>
+            <td class="px-3 py-2.5">
+              <div class="flex items-center justify-end gap-2">
+                <div class="w-14 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div class="score-bar h-full rounded-full ${bar}" style="width:${Math.min(p.score, 100)}%"></div>
+                </div>
+                <span class="text-xs tabular-nums w-7 text-right">${p.score.toFixed(0)}</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${formClass(p.badge)}">${esc(p.badge)}</span></td>
+          </tr>`;
       }).join('');
     }
 
     async function load() {
-      document.getElementById('refreshIcon').classList.add('animate-spin');
-      setBadge('bg-amber-100 text-amber-800', '<span class="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Loading Data...');
+      const icon = document.getElementById('refreshIcon');
+      const err = document.getElementById('errorBox');
+      icon.classList.add('animate-spin');
+      err.classList.add('hidden');
       try {
         const res = await fetch(DATA_URL, { cache: 'no-cache' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -298,32 +477,43 @@
         const all = buildPlayers(data);
         players = all.filter(p => p.mat > 0);
         hiddenCount = all.length - players.length;
+        renderPeriod(data);
         renderKpis(players);
-        renderCharts(players);
+        renderChart('battingChart', pickTop(players, 'runs', 5), 'runs', 'Runs', '#f59e0b');
+        renderChart('bowlingChart', pickTop(players, 'wkts', 5), 'wkts', 'Wickets', '#60a5fa');
         renderTiles(players);
         renderHead();
         renderRows();
+        document.getElementById('updated').textContent = data.generated_at || '—';
         document.getElementById('footNote').textContent =
-          (hiddenCount ? `${hiddenCount} squad members with no matches are hidden · ` : '') + 'Updated ' + (data.generated_at || '');
-        setBadge('bg-emerald-100 text-emerald-800', '<span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> Synced ' + esc(data.generated_at || ''));
+          'All formats combined · click a column header to sort' +
+          (hiddenCount ? ` · ${hiddenCount} squad members with no matches are not shown` : '');
       } catch (e) {
         console.error('Failed to load ' + DATA_URL, e);
-        setBadge('bg-rose-100 text-rose-800', '⚠️ Sync Failed');
-        document.getElementById('tableBody').innerHTML =
-          `<tr><td colspan="18" class="text-center py-8 text-rose-600">Could not load ${DATA_URL} (${esc(e.message)}). Serve over HTTP, not file://.</td></tr>`;
+        err.textContent = `Could not load ${DATA_URL} (${e.message}). Serve this page over HTTP, not file://.`;
+        err.classList.remove('hidden');
       } finally {
-        document.getElementById('refreshIcon').classList.remove('animate-spin');
+        icon.classList.remove('animate-spin');
       }
     }
+
+    function showTab(name) {
+      document.getElementById('view-board').classList.toggle('hidden', name !== 'board');
+      document.getElementById('view-help').classList.toggle('hidden', name !== 'help');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      window.scrollTo({ top: 0 });
+    }
+    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    showTab('board');
 
     document.getElementById('btnRefresh').addEventListener('click', load);
     document.getElementById('playerSearch').addEventListener('input', renderRows);
     document.getElementById('tableHead').addEventListener('click', e => {
       const th = e.target.closest('th[data-key]');
       if (!th) return;
-      const key = th.dataset.key;
-      sortDir = key === sortKey ? -sortDir : (key === 'name' || key === 'role' || key === 'badge' || key === 'econ' || key === 'bavg' ? 1 : -1);
-      sortKey = key;
+      const col = COLUMNS.find(c => c.key === th.dataset.key);
+      sortDir = th.dataset.key === sortKey ? -sortDir : (col.first ? 1 : -1);
+      sortKey = th.dataset.key;
       renderHead();
       renderRows();
     });
