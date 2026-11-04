@@ -62,7 +62,7 @@ jobs:
           else
             echo "::error::No gc-app.db on state branch - refusing to rebuild data.json from an empty DB"; exit 1
           fi
-          for d in commentary match_history; do
+          for d in commentary match_history scorecards; do
             [ -d _state/persist/cache/$d ] && { mkdir -p data/cache/$d; cp -r _state/persist/cache/$d/. data/cache/$d/; }
           done
           true
@@ -124,10 +124,11 @@ jobs:
       - name: Save DB + caches back to state branch
         if: steps.guard.outputs.run == 'true'
         run: |
-          mkdir -p _state/persist/cache/commentary _state/persist/cache/match_history
+          mkdir -p _state/persist/cache/commentary _state/persist/cache/match_history _state/persist/cache/scorecards
           cp data/gc-app.db _state/persist/gc-app.db
           cp data/cache/commentary/balls_* _state/persist/cache/commentary/ 2>/dev/null || true
           cp data/cache/match_history/*.json _state/persist/cache/match_history/ 2>/dev/null || true
+          find data/cache/scorecards -name 'scorecard_*.html' -size +1k -exec cp -n {} _state/persist/cache/scorecards/ \; 2>/dev/null || true
           cd _state
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
