@@ -56,12 +56,7 @@
 
     <div id="errorBox" class="hidden card rounded-2xl border border-red-500/40 p-4 text-sm text-red-300"></div>
 
-    <div class="card rounded-2xl border border-slate-700/50 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span class="text-lg">📅</span>
-      <span class="text-slate-500 text-xs uppercase tracking-widest">Data period</span>
-      <span id="dataPeriod" class="text-amber-400 font-semibold text-sm">—</span>
-      <span id="dataPeriodSub" class="text-xs text-slate-500">All matches</span>
-    </div>
+    <div id="gcFilter" class="card rounded-2xl border border-slate-700/50 px-4 py-3"></div>
 
     <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
       <div class="card rounded-2xl p-4 border border-slate-700/50">
@@ -138,7 +133,8 @@
     <section class="card rounded-2xl border border-slate-700/50 p-5">
       <h2 class="text-amber-400 font-semibold text-base mb-3 flex items-center gap-2"><span>📖</span> How to read this page</h2>
       <ul class="space-y-2 text-sm text-slate-300 list-disc pl-5 marker:text-amber-500/60">
-        <li><b class="text-white">Data period</b> – earliest to latest match date found in the data. Every number on the page covers our two teams' matches in that window, all formats (6, 10, 15 and 20 overs) combined. Games a player took part in for other teams are not counted.</li>
+        <li><b class="text-white">Filters</b> \u2013 at the top of the page. <b class="text-white">Quick range</b> or the <b class="text-white">From / To</b> dates limit every number to matches played in that period; <b class="text-white">Players</b> limits it to the people you tick (the number beside each name is how many matches they played in the chosen period). <b class="text-white">Reset filters</b> returns to everything. Your choice is remembered in this browser.</li>
+        <li><b class="text-white">Data period</b> \u2013 the first and last match date in the selection, with the number of team matches, days and player appearances. Every number covers our two teams' matches, all formats (6, 10, 15 and 20 overs) combined. Games a player took part in for other teams are not counted.</li>
         <li><b class="text-white">Summary cards</b> – team totals across the shown players, plus the top run scorer, top wicket taker and the player with the highest form score.</li>
         <li><b class="text-white">Charts</b> – the five highest run scorers and wicket takers.</li>
         <li><b class="text-white">Leader tiles</b> – the top three players for one stat each. Some tiles need a minimum number of balls, innings or overs, so tiny samples don't win.</li>
@@ -253,6 +249,7 @@
 
 </main>
 
+  <script src="gc-engine.js"></script>
   <script>
     const DATA_URL = 'data/data.json';
     const num = v => Number(v) || 0;
@@ -338,19 +335,6 @@
           score: num(p.overall_score),
         };
       });
-    }
-
-    const fmtDate = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-
-    function renderPeriod(data) {
-      const dates = (data.players || []).flatMap(p => (p.recent_matches || []).map(m => m.date)).filter(Boolean).sort();
-      const el = document.getElementById('dataPeriod'), sub = document.getElementById('dataPeriodSub');
-      if (!dates.length) { el.textContent = '—'; sub.textContent = ''; return; }
-      const first = dates[0], last = dates[dates.length - 1];
-      const days = Math.round((new Date(last) - new Date(first)) / 86400000) + 1;
-      el.textContent = `${fmtDate(first)} → ${fmtDate(last)}`;
-      const n = data.team && data.team.nct_matches;
-      sub.textContent = `${n ? n + ' team matches' : 'Team matches'} · ${days} days · ${dates.length} player appearances · games for other teams excluded`;
     }
 
     const pickTop = (arr, key, n, dir = -1) => [...arr].sort((a, b) => dir * (a[key] - b[key])).slice(0, n);
@@ -466,6 +450,24 @@
       }).join('');
     }
 
+    let rawData = null, filterBar = null;
+
+    function show(data) {
+      const all = buildPlayers(data);
+      players = all.filter(p => p.mat > 0);
+      hiddenCount = all.length - players.length;
+      renderKpis(players);
+      renderChart('battingChart', pickTop(players, 'runs', 5), 'runs', 'Runs', '#f59e0b');
+      renderChart('bowlingChart', pickTop(players, 'wkts', 5), 'wkts', 'Wickets', '#60a5fa');
+      renderTiles(players);
+      renderHead();
+      renderRows();
+      document.getElementById('updated').textContent = data.generated_at || '\u2014';
+      document.getElementById('footNote').textContent =
+        'All formats combined \u00B7 click a column header to sort' +
+        (hiddenCount ? ` \u00B7 ${hiddenCount} selected players have no matches in this period` : '');
+    }
+
     async function load() {
       const icon = document.getElementById('refreshIcon');
       const err = document.getElementById('errorBox');
@@ -474,21 +476,19 @@
       try {
         const res = await fetch(DATA_URL, { cache: 'no-cache' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        const all = buildPlayers(data);
-        players = all.filter(p => p.mat > 0);
-        hiddenCount = all.length - players.length;
-        renderPeriod(data);
-        renderKpis(players);
-        renderChart('battingChart', pickTop(players, 'runs', 5), 'runs', 'Runs', '#f59e0b');
-        renderChart('bowlingChart', pickTop(players, 'wkts', 5), 'wkts', 'Wickets', '#60a5fa');
-        renderTiles(players);
-        renderHead();
-        renderRows();
-        document.getElementById('updated').textContent = data.generated_at || '—';
-        document.getElementById('footNote').textContent =
-          'All formats combined · click a column header to sort' +
-          (hiddenCount ? ` · ${hiddenCount} squad members with no matches are not shown` : '');
+        rawData = await res.json();
+        if (!GCEngine.supported(rawData)) {
+          // Older data file without per-match detail: show everything, no filter bar
+          document.getElementById('gcFilter').classList.add('hidden');
+          show(rawData);
+        } else if (filterBar) {
+          filterBar.setRaw(rawData);
+        } else {
+          filterBar = GCEngine.mountFilterBar({
+            el: document.getElementById('gcFilter'), raw: rawData, storageKey: 'gc_filter_players',
+            onChange: derived => show(derived),
+          });
+        }
       } catch (e) {
         console.error('Failed to load ' + DATA_URL, e);
         err.textContent = `Could not load ${DATA_URL} (${e.message}). Serve this page over HTTP, not file://.`;
@@ -497,15 +497,6 @@
         icon.classList.remove('animate-spin');
       }
     }
-
-    function showTab(name) {
-      document.getElementById('view-board').classList.toggle('hidden', name !== 'board');
-      document.getElementById('view-help').classList.toggle('hidden', name !== 'help');
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-      window.scrollTo({ top: 0 });
-    }
-    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
-    showTab('board');
 
     document.getElementById('btnRefresh').addEventListener('click', load);
     document.getElementById('playerSearch').addEventListener('input', renderRows);
