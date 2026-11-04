@@ -114,7 +114,7 @@ jobs:
           cp reports/data/data.json site/data/data.json
           cp reports/index.html site/index.html
           cp reports/dashboard.html site/dashboard.html
-          cp pages/players.html pages/logo.jpg site/
+          cp pages/players.html pages/gc-engine.js pages/logo.jpg site/
           touch site/.nojekyll
           cd site
           git config user.name  "github-actions[bot]"

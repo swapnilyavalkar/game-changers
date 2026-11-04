@@ -137,12 +137,7 @@
   <!-- ── MAIN CONTENT ────────────────────────────────────────────────────── -->
   <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-    <div class="card rounded-2xl border border-slate-700/50 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span class="text-lg">📅</span>
-      <span class="text-slate-500 text-xs uppercase tracking-widest">Data period</span>
-      <span class="text-amber-400 font-semibold text-sm" x-text="dataPeriod().range"></span>
-      <span class="text-xs text-slate-500" x-text="dataPeriod().detail"></span>
-    </div>
+    <div id="gcFilter" x-ignore class="relative card rounded-2xl border border-slate-700/50 px-4 py-3"></div>
 
     <!-- ═══════════════════════════════════════════════════════════════════
          TAB: TEAM OVERVIEW
@@ -1324,7 +1319,7 @@
           </div>
         </template>
         <div class="space-y-4">
-          <template x-for="batter in (filteredStrategy.batter_vs_bowler || [])" :key="batter.batter_name">
+          <template x-for="batter in (filteredStrategy.batter_vs_bowler || [])" :key="batter.batter_player_id || batter.batter_name">
             <div class="card rounded-2xl border border-slate-700/50 overflow-hidden">
               <div class="px-4 py-3 border-b border-slate-700/50 flex items-center gap-3">
                 <span class="text-amber-400 font-bold text-sm" x-text="batter.batter_name"></span>
@@ -1384,6 +1379,9 @@
         <h2 class="text-2xl font-bold text-amber-400 flex items-center gap-2">
           <span>📖</span> Game Changers Analytics — User & Feature Guide
         </h2>
+        <p class="text-slate-300 text-sm mt-2 leading-relaxed bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2">
+          <b class="text-amber-400">Filters:</b> the bar at the top limits <i>every tab</i> to a period (quick range or From/To dates) and to the players you tick. The number beside each name is how many matches they played in the chosen period. Players who did not play in a chosen period are hidden. <b>Reset filters</b> returns to everything; your choice is remembered in this browser.
+        </p>
         <p class="text-slate-300 text-sm mt-2 leading-relaxed">
           Welcome to the Game Changers Cricket Analytics Platform. This interactive dashboard translates raw CricHeroes match scorecards and commentary into actionable strategy, form ratings, auto squad selection, and team accountability.
         </p>
@@ -1516,7 +1514,12 @@
   <script>{{ alpine_js }}</script>
   {% else %}
   <script>
-    window.__DATA_READY__.then(() => {
+    window.__DATA_READY__.then(() => new Promise((resolve, reject) => {
+      const e = document.createElement('script');
+      e.src = 'gc-engine.js';
+      e.onload = resolve; e.onerror = () => reject(new Error('gc-engine.js failed to load'));
+      document.head.appendChild(e);
+    })).then(() => {
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js';
       document.head.appendChild(s);
@@ -1533,6 +1536,8 @@
     document.addEventListener('alpine:init', () => {
       Alpine.data('app', () => ({
         raw: window.__DATA__,
+        rawFull: window.__DATA__,
+        filterBar: null,
 
         // State
         activeTab:       'overview',
@@ -1558,6 +1563,21 @@
         ],
 
         init() {
+          // ── Global filter (period + players): every tab reads this.raw, so swap it on change ──
+          if (window.GCEngine && GCEngine.supported(this.rawFull)) {
+            let first = true;
+            this.filterBar = GCEngine.mountFilterBar({
+              el: document.getElementById('gcFilter'), raw: this.rawFull, storageKey: 'gc_filter_index',
+              onChange: (derived) => {
+                this.raw = derived;
+                if (first) { first = false; return; }
+                this.afterFilterChange();
+              },
+            });
+          } else {
+            document.getElementById('gcFilter').classList.add('hidden');
+          }
+
           // ── Restore persisted state from localStorage ────────────────────
           try {
             const saved = JSON.parse(localStorage.getItem('nct_dash_state') || '{}');
@@ -1618,6 +1638,17 @@
           if (this.activeTab === 'player' && this.selectedPlayerId) {
             this.$nextTick(() => this.renderPlayerCharts());
           }
+        },
+
+        // The chosen player may have been filtered out; fall back to the first one still shown
+        afterFilterChange() {
+          const ps = this.raw.players || [];
+          if (!ps.find(p => p.id === this.selectedPlayerId)) {
+            this.selectedPlayerId = ps.length ? ps[0].id : null;
+          }
+          this.$nextTick(() => {
+            if (this.activeTab === 'player') this.renderPlayerCharts();
+          });
         },
 
         // ── "All Matches" filter: rerender charts when lastN changes ─────
@@ -1824,22 +1855,6 @@
           return this.raw.team?.nct_matches || 0;
         },
 
-        dataPeriod() {
-          const dates = (this.raw.players || [])
-            .flatMap(p => (p.recent_matches || []).map(m => m.date))
-            .filter(Boolean).sort();
-          if (!dates.length) return { range: '—', detail: '' };
-          const fmt = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB',
-            { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-          const first = dates[0], last = dates[dates.length - 1];
-          const days = Math.round((new Date(last) - new Date(first)) / 86400000) + 1;
-          const n = this.raw.team?.nct_matches;
-          return {
-            range: fmt(first) + ' → ' + fmt(last),
-            detail: (n ? n + ' team matches' : 'Team matches') + ' · ' + days + ' days · '
-              + dates.length + ' player appearances · games for other teams excluded',
-          };
-        },
 
         recentMatchesList() {
           if (!this.currentPlayer) return [];

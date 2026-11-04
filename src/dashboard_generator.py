@@ -30,6 +30,7 @@ from config import (
     FORMATS, REPORTS_DIR, DATA_DIR, TEAM_ID, TEMPLATES_DIR,
     BAT_AVG_BENCHMARK, BAT_SR_BENCHMARK, BOWL_ECON_GOOD, BOWL_ECON_BAD,
     WEIGHTS, RECENT_MATCHES_N, FORM_IN_THRESHOLD, FORM_AVG_THRESHOLD,
+    SQUAD_11, SQUAD_15,
 )
 import db
 import analyzer
@@ -258,6 +259,7 @@ def build_opportunity_payload(
     all_analysis: list[dict],
     df,
     selections: dict,
+    scope_df=None,
 ) -> dict:
     """
     Build the Opportunity Board payload (Phase 2):
@@ -277,10 +279,21 @@ def build_opportunity_payload(
     # ── Bowling phase stats from commentary cache ─────────────────────────────
     bowling_phase_stats = _build_bowling_phase_stats(players_db)
 
-    # Total unique Game Changers team matches (exclude cross-team player history)
-    total_team_matches = int(df[df["is_game_changers_match"] == 1]["match_id"].nunique()) if not df.empty else 0
+    # The squad's own rows only: the "team" in every peer comparison is the players on this
+    # dashboard, so the browser filter can reproduce these numbers from data.json alone.
+    squad_ids = {p["id"] for p in players_db}
+    if not df.empty:
+        df = df[df["player_id"].isin(squad_ids)]
 
-    # Team averages across all players (all-format)
+    # Matches the opportunity index is measured against. scope_df lets a caller keep the
+    # full match set while df is narrowed to a subset of players.
+    _universe = df if scope_df is None else scope_df
+    total_team_matches = (
+        int(_universe[_universe["is_game_changers_match"] == 1]["match_id"].nunique())
+        if _universe is not None and not _universe.empty else 0
+    )
+
+    # Team averages across the squad (all-format)
     team_bat_avg  = float(df["runs"].mean())    if not df.empty and "runs"    in df.columns else 0
     team_bowl_econ = float(df[df["overs_bowled"] > 0]["economy"].mean()) if not df.empty and "economy" in df.columns else 0
 
@@ -460,27 +473,44 @@ def build_data_payload(
             import pandas as pd
             pm = (
                 df[df["player_id"] == pid]
-                .sort_values("match_date", ascending=False)
-                .head(50)
-            )
+                .sort_values("match_date", ascending=False, kind="stable")
+            )   # full history: the date filter and the 4s/6s totals need every match
             for _, row in pm.iterrows():
+                def _num(key, default=0):
+                    v = row.get(key, default)
+                    try:
+                        return default if pd.isna(v) else v
+                    except (TypeError, ValueError):
+                        return v if v is not None else default
+
+                bpos = row.get("batting_position")
                 recent_matches.append({
+                    "match_id":           str(row.get("cricheroes_match_id", "") or ""),
                     "date":               str(row.get("match_date", "") or ""),
                     "opponent":           str(row.get("opponent", "") or ""),
                     "overs":              int(row.get("match_overs", 0) or 0),
                     "result":             str(row.get("result", "") or ""),
                     "is_game_changers_match": int(row.get("is_game_changers_match", 1) or 1),
-                    "runs":               int(row.get("runs", 0) or 0),
-                    "balls_faced":        int(row.get("balls_faced", 0) or 0),
-                    "fours":              int(row.get("fours", 0) or 0),
-                    "sixes":              int(row.get("sixes", 0) or 0),
-                    "batting_sr":         round(float(row.get("batting_sr", 0) or 0), 2),
-                    "is_out":             int(row.get("is_out", 0) or 0),
-                    "yet_to_bat":         int(row.get("yet_to_bat", 0) or 0),
-                    "overs_bowled":       round(float(row.get("overs_bowled", 0) or 0), 1),
-                    "wickets":            int(row.get("wickets", 0) or 0),
-                    "runs_conceded":      int(row.get("runs_conceded", 0) or 0),
-                    "economy":            round(float(row.get("economy", 0) or 0), 2),
+                    "runs":               int(_num("runs")),
+                    "balls_faced":        int(_num("balls_faced")),
+                    "fours":              int(_num("fours")),
+                    "sixes":              int(_num("sixes")),
+                    "batting_sr":         float(_num("batting_sr")),
+                    "is_out":             int(_num("is_out")),
+                    "yet_to_bat":         int(_num("yet_to_bat")),
+                    "batting_position":   None if pd.isna(bpos) else int(bpos),
+                    "overs_bowled":       float(_num("overs_bowled")),
+                    "wickets":            int(_num("wickets")),
+                    "runs_conceded":      int(_num("runs_conceded")),
+                    "economy":            float(_num("economy")),
+                    "did_not_bowl":       int(_num("did_not_bowl")),
+                    "wides":              int(_num("wides")),
+                    "no_balls":           int(_num("no_balls")),
+                    "boundaries_conceded": int(_num("boundaries_conceded")),
+                    "dot_balls":          int(_num("dot_balls")),
+                    "catches":            int(_num("catches")),
+                    "run_outs":           int(_num("run_outs")),
+                    "stumpings":          int(_num("stumpings")),
                 })
 
         # ── Career all-time stats (from player_fetcher) ───────────────────────
@@ -543,6 +573,8 @@ def build_data_payload(
             "weight_format_specific": WEIGHTS["format_specific"],
             "weight_career_avg":      WEIGHTS["career_avg"],
             "weight_consistency":     WEIGHTS["consistency"],
+            "squad_11": {r: list(v) for r, v in SQUAD_11.items()},
+            "squad_15": {r: list(v) for r, v in SQUAD_15.items()},
         },
     }
 
@@ -605,7 +637,8 @@ def _analysis_from_profiles(players: list[dict], profiles: dict) -> list[dict]:
 # ── Strategy payload ──────────────────────────────────────────────────────────
 
 def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
-                             bvb_rows: list[dict] | None = None) -> dict:
+                             bvb_rows: list[dict] | None = None,
+                             bvb_match_rows: list[dict] | None = None) -> dict:
     """
     Transform raw strategy DB rows into dashboard-ready payload.
 
@@ -624,6 +657,8 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
     }
     """
     our_player_map = {p["id"]: p["name"] for p in players_db}
+    squad_ids      = set(our_player_map)
+    our_player_id_to_name = our_player_map
 
     # ── Per opponent summary ───────────────────────────────────────────────────
     per_opponent = [dict(r) for r in strategy_raw.get("per_opponent", [])]
@@ -631,6 +666,7 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
     # Raw per-match rows for client-side format/lastN filtering
     per_opponent_raw = [
         {
+            "match_id":      str(r.get("cricheroes_match_id", "") or ""),
             "match_date":    r.get("match_date", "")[:10],
             "opponent":      r.get("opponent", ""),
             "result":        r.get("result", ""),
@@ -645,6 +681,8 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
     bowler_dict: dict[str, dict] = {}
     for d in strategy_raw.get("dismissals_by_bowler", []):
         bpid = d.get("bowler_player_id")
+        if bpid not in squad_ids:
+            continue
         key  = str(bpid) if bpid else d.get("bowler_name", "")
         if key not in bowler_dict:
             bowler_dict[key] = {
@@ -677,6 +715,8 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
                 "total":                0,
             }
         bpid  = d.get("batter_player_id")
+        if bpid not in squad_ids:
+            continue
         bname = our_player_map.get(bpid, d.get("batter_name", ""))
         opp_bowler_dict[key]["our_batters_dismissed"].append({
             "batter":           bname,
@@ -715,6 +755,7 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
         entry["total_runs"]     += int(obs.get("runs_conceded") or 0)
         entry["total_wickets"]  += int(obs.get("wickets") or 0)
         entry["per_match"].append({
+            "match_id":    str(obs.get("cricheroes_match_id", "") or ""),
             "date":        obs.get("match_date", "")[:10],
             "overs":       float(obs.get("overs") or 0),
             "runs":        int(obs.get("runs_conceded") or 0),
@@ -737,9 +778,9 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
     our_player_id_to_name = {p["id"]: p["name"] for p in players_db}
     for row in (bvb_rows or []):
         pid   = row.get("batter_player_id")
-        bname = our_player_id_to_name.get(pid, row.get("batter_name", ""))
-        if not bname:
+        if pid not in our_player_id_to_name:
             continue
+        bname = our_player_id_to_name[pid]
         if bname not in bvb_by_batter:
             bvb_by_batter[bname] = {
                 "batter_name":      bname,
@@ -761,9 +802,26 @@ def _build_strategy_payload(players_db: list[dict], strategy_raw: dict,
 
     batter_vs_bowler = sorted(bvb_by_batter.values(), key=lambda x: x["batter_name"])
 
+    # Per-match rows so the browser can rebuild batter-vs-bowler for any date range / player set
+    batter_vs_bowler_rows = [
+        {
+            "match_id":         str(r.get("match_id", "") or ""),
+            "date":             (r.get("match_date") or "")[:10],
+            "batter_player_id": r.get("batter_player_id"),
+            "bowler_name":      r.get("bowler_name", ""),
+            "bowler_ch_id":     r.get("bowler_ch_id"),
+            "runs":   r.get("runs", 0) or 0,   "balls":      r.get("balls", 0) or 0,
+            "fours":  r.get("fours", 0) or 0,  "sixes":      r.get("sixes", 0) or 0,
+            "dismissals": r.get("dismissals", 0) or 0, "dot_balls": r.get("dot_balls", 0) or 0,
+        }
+        for r in (bvb_match_rows or [])
+        if r.get("batter_player_id") in our_player_id_to_name
+    ]
+
     return {
         "per_opponent":            per_opponent,
         "per_opponent_raw":        per_opponent_raw,
+        "batter_vs_bowler_rows":   batter_vs_bowler_rows,
         "our_bowlers_dismissals":  our_bowlers_dismissals,
         "opponent_bowlers_vs_us":  opponent_bowlers_vs_us,
         "opponent_bowler_stats":   opponent_bowler_stats,
@@ -887,7 +945,8 @@ def generate(
     try:
         strategy_raw = db.get_strategy_data()
         bvb_rows = db.get_batter_vs_bowler_stats()
-        payload["strategy"] = _build_strategy_payload(players, strategy_raw, bvb_rows)
+        bvb_match_rows = db.get_batter_vs_bowler_rows()
+        payload["strategy"] = _build_strategy_payload(players, strategy_raw, bvb_rows, bvb_match_rows)
     except Exception as e:
         log.warning(f"[dashboard_gen] Strategy data unavailable: {e}")
         payload["strategy"] = {

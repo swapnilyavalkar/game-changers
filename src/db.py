@@ -447,7 +447,7 @@ def get_player_stats_df(team_only: bool = True):
     JOIN players p ON p.id = s.player_id
     JOIN matches m ON m.id = s.match_id
     {where}
-    ORDER BY m.match_date DESC
+    ORDER BY m.match_date DESC, CAST(m.cricheroes_match_id AS INTEGER) DESC
     """.format(where="WHERE m.is_game_changers_match = 1" if team_only else "")
     with get_conn() as conn:
         rows = conn.execute(sql).fetchall()
@@ -607,6 +607,7 @@ def get_strategy_data() -> dict:
                     AVG(CASE WHEN s.overs_bowled > 0 THEN s.economy ELSE NULL END)       AS match_economy
                 FROM matches m
                 JOIN player_match_stats s ON s.match_id = m.id
+                JOIN players sp ON sp.id = s.player_id AND sp.is_game_changers = 1
                 WHERE m.is_game_changers_match = 1
                 GROUP BY m.id, m.opponent, m.result
             )
@@ -627,6 +628,7 @@ def get_strategy_data() -> dict:
         per_opponent_matches = conn.execute("""
             SELECT
                 m.id AS match_id,
+                m.cricheroes_match_id,
                 m.match_date,
                 m.opponent,
                 m.result,
@@ -635,8 +637,9 @@ def get_strategy_data() -> dict:
                 SUM(COALESCE(s.wickets, 0)) AS match_wickets
             FROM matches m
             JOIN player_match_stats s ON s.match_id = m.id
+            JOIN players sp ON sp.id = s.player_id AND sp.is_game_changers = 1
             WHERE m.is_game_changers_match = 1
-            GROUP BY m.id, m.match_date, m.opponent, m.result, m.overs
+            GROUP BY m.id, m.cricheroes_match_id, m.match_date, m.opponent, m.result, m.overs
             ORDER BY m.match_date DESC
         """).fetchall()
 
@@ -668,7 +671,7 @@ def get_strategy_data() -> dict:
 
         # Opponent bowling stats vs us — Game Changers matches only
         opp_bowling = conn.execute("""
-            SELECT obs.*, m.opponent, m.match_date, m.overs AS match_overs, m.result
+            SELECT obs.*, m.cricheroes_match_id, m.opponent, m.match_date, m.overs AS match_overs, m.result
             FROM opponent_bowling_stats obs
             JOIN matches m ON m.id = obs.match_id
             WHERE m.is_game_changers_match = 1
@@ -756,6 +759,32 @@ def get_batter_vs_bowler_stats() -> list[dict]:
       AND m.is_game_changers_match = 1
     GROUP BY bvb.batter_player_id, bvb.bowler_name
     ORDER BY bvb.batter_name, runs DESC
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_batter_vs_bowler_rows() -> list[dict]:
+    """One row per (match, batter, bowler) for our batters, with the match date.
+
+    The aggregated view above cannot be filtered by date; the dashboard rebuilds it from these rows.
+    """
+    sql = """
+    SELECT
+        m.cricheroes_match_id AS match_id,
+        m.match_date,
+        bvb.batter_player_id,
+        bvb.bowler_name,
+        bvb.bowler_ch_id,
+        bvb.runs_scored AS runs,
+        bvb.balls_faced AS balls,
+        bvb.fours, bvb.sixes, bvb.dismissals, bvb.dot_balls
+    FROM batter_vs_bowler bvb
+    JOIN matches m ON m.id = bvb.match_id
+    WHERE bvb.batter_player_id IS NOT NULL
+      AND m.is_game_changers_match = 1
+    ORDER BY m.match_date DESC, m.cricheroes_match_id DESC, bvb.bowler_name
     """
     with get_conn() as conn:
         rows = conn.execute(sql).fetchall()

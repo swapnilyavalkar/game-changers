@@ -45,7 +45,7 @@ def compute_player_format_stats(df: pd.DataFrame, player_id: int, fmt: int) -> d
     if pdata.empty:
         return _empty_stats(player_id, fmt)
 
-    pdata = pdata.sort_values("match_date", ascending=False)
+    pdata = pdata.sort_values("match_date", ascending=False, kind="stable")
 
     # ── Batting ───────────────────────────────────────────────────────────────
     bat = pdata[pdata["runs"].notna() & (pdata["balls_faced"] > 0)]
@@ -371,7 +371,7 @@ def compute_weekend_trend(df: pd.DataFrame, player_id: int, fmt: int = 0) -> dic
     if pdata.empty or len(pdata) < 2:
         return {"weekends": [], "trend": "insufficient_data", "slope": 0.0, "scores": []}
 
-    pdata = pdata.sort_values("match_date", ascending=True)
+    pdata = pdata.sort_values("match_date", ascending=True, kind="stable")
     pdata["match_date"] = pd.to_datetime(pdata["match_date"], errors="coerce")
     pdata = pdata.dropna(subset=["match_date"])
 
@@ -502,8 +502,10 @@ def analyse_all(df: pd.DataFrame, players: list[dict]) -> list[dict]:
     # Persist inferred roles back to DB for players who were 'unknown'
     try:
         import db as _db
-        for p, r in zip(players, [res for res in results]):
-            if p.get("role", "unknown") == "unknown" and r["role"] != "unknown":
+        by_id = {res["player_id"]: res for res in results}
+        for p in players:
+            r = by_id.get(p["id"])
+            if r and p.get("role", "unknown") == "unknown" and r["role"] != "unknown":
                 with _db.get_conn() as conn:
                     conn.execute(
                         "UPDATE players SET role=?, updated_at=datetime('now') WHERE id=?",
