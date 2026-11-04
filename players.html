@@ -28,7 +28,7 @@
 <body class="dark text-gray-100 min-h-screen antialiased">
 
   <header class="bg-slate-900/90 backdrop-blur border-b border-slate-700/60 sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div class="flex items-center gap-3 shrink-0">
         <img src="logo.jpg" alt="Game Changers Logo" class="w-9 h-9 rounded-full object-cover border border-amber-500/60 shadow-md shrink-0">
         <div>
@@ -38,19 +38,19 @@
       </div>
       <div class="flex items-center gap-3">
         <p class="text-slate-500 text-xs hidden sm:block">Updated: <span id="updated" class="text-amber-400/80">—</span></p>
-        <a href="index.html" class="text-xs px-3 py-1.5 rounded-lg border border-slate-600/60 bg-slate-800 text-gray-300 hover:border-amber-500 hover:text-amber-400 transition">Full dashboard</a>
+        <a href="index.html" class="text-xs whitespace-nowrap px-3 py-1.5 rounded-lg border border-slate-600/60 bg-slate-800 text-gray-300 hover:border-amber-500 hover:text-amber-400 transition">Full dashboard</a>
         <button id="btnRefresh" type="button" class="text-xs px-3 py-1.5 rounded-lg border border-slate-600/60 bg-slate-800 text-gray-300 hover:border-amber-500 hover:text-amber-400 transition flex items-center gap-1.5">
           <span id="refreshIcon">🔄</span> Refresh
         </button>
       </div>
     </div>
-    <div class="max-w-7xl mx-auto px-4 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 border-t border-slate-800 flex overflow-x-auto whitespace-nowrap">
       <button type="button" data-tab="board" class="tab-btn px-5 py-2.5 text-sm font-medium border-b-2 transition-colors">Squad Leaderboard</button>
       <button type="button" data-tab="help" class="tab-btn px-5 py-2.5 text-sm font-medium border-b-2 transition-colors">Help</button>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-6">
+  <main class="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
 
   <div id="view-board" class="space-y-6">
 
@@ -66,11 +66,11 @@
     <section class="grid grid-cols-2 md:grid-cols-5 gap-4">
       <div class="card rounded-2xl p-4 border border-slate-700/50">
         <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Total Runs</p>
-        <p id="kpiRuns" class="text-3xl font-black text-amber-400 tabular-nums">—</p>
+        <p id="kpiRuns" class="text-2xl sm:text-3xl font-black text-amber-400 tabular-nums">—</p>
       </div>
       <div class="card rounded-2xl p-4 border border-slate-700/50">
         <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Total Wickets</p>
-        <p id="kpiWickets" class="text-3xl font-black text-blue-400 tabular-nums">—</p>
+        <p id="kpiWickets" class="text-2xl sm:text-3xl font-black text-blue-400 tabular-nums">—</p>
       </div>
       <div class="card rounded-2xl p-4 border border-slate-700/50">
         <p class="text-slate-500 text-xs uppercase tracking-widest mb-1">Top Scorer</p>
